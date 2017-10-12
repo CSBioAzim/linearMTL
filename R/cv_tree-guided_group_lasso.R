@@ -24,6 +24,7 @@
 #'     different parameters.}
 #'     \item{full.model}{Full model trained on the whole data set.}
 #'
+#' @importFrom foreach foreach %dopar%
 #' @seealso \code{\link{TreeGuidedGroupLasso}}
 #' @export
 RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
@@ -73,7 +74,7 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
   XTX.global <- list()
   XTY.global <- list()
   doMC::registerDoMC(num.threads)
-  mats <- foreach::foreach(i = seq_along(cv.folds)) %dopar% PrepareMatrices(Y = Y, X = X,
+  mats <- foreach(i = seq_along(cv.folds)) %dopar% PrepareMatrices(Y = Y, X = X,
                                                                             task.specific.features = task.specific.features,
                                                                             idx = cv.folds[[i]])
   for (i in seq_along(mats)) {
@@ -115,9 +116,9 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
       }
 
       # train model
-      fold.result <- TreeGuidedGroupLassoSPG(X = X[-fold, ], task.specific.features = fold.ex.task.specific.features,
-                                             Y = Y[-fold,,drop = FALSE], groups = groups, weights = weights, lambda = lambda,
-                                             XTX = XTX.global[[i]], XTY = XTY.global[[i]], ...)
+      fold.result <- TreeGuidedGroupLasso(X = X[-fold, ], task.specific.features = fold.ex.task.specific.features,
+                                          Y = Y[-fold,,drop = FALSE], groups = groups, weights = weights, lambda = lambda,
+                                          XTX = XTX.global[[i]], XTY = XTY.global[[i]], ...)
       early.termination <- early.termination & fold.result$early.termination
       error <- error + MTComputeError(Y = Y[fold, , drop = FALSE], beta = fold.result$beta,
                                       X = X[fold, ], task.specific.features = fold.task.specific.features)
@@ -138,7 +139,7 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
   # run cv on all parameter settings
   doMC::registerDoMC(num.threads)
   param.inds <- 1:nrow(parameter.grid)
-  cv.results <- foreach::foreach(ind = param.inds) %dopar% RunParameter(ind)
+  cv.results <- foreach(l = param.inds) %dopar% RunParameter(l)
 
   # turn result into data.frame
   weight.names <- 1:length(cv.results[[1]]$weights)
@@ -158,7 +159,7 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
   weights <- parameter.grid[min.idx, 2:ncol(parameter.grid)]
 
   # retrain model
-  full.model <- TreeGuidedGroupLassoSPG(X = X, Y = Y, groups = groups, weights = weights, lambda = lambda, ...)
+  full.model <- TreeGuidedGroupLasso(X = X, Y = Y, groups = groups, weights = weights, lambda = lambda, ...)
   train.end.time <- Sys.time()
   print(sprintf("Minutes to run train full model : %0.1f", as.numeric(train.end.time - train.start.time, units = "mins")))
 

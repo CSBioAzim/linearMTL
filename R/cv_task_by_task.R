@@ -19,6 +19,7 @@
 #'    \item{beta}{Final regression coefficients for the model fitted on the full data set.}
 #'    \item{error}{Cross-validation errors for each task.}
 #'
+#' @importFrom foreach foreach %dopar%
 #' @export
 RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
                                    lambda.vec, num.folds = 10, num.threads = 1, ...) {
@@ -99,7 +100,7 @@ RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
   err <- rep(0, ncol(X))
 
   doMC::registerDoMC(num.threads)
-  cv.results <- foreach::foreach(task = 1:K) %dopar% RunParameter(task)
+  cv.results <- foreach(task = 1:K) %dopar% RunParameter(task)
   for (task in 1:K) {
     tbt.beta[, task] <- cv.results[[task]]$beta
     lambda[task] <- cv.results[[task]]$lambda
