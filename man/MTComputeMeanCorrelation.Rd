@@ -5,7 +5,7 @@
 \title{Compute (mean) correlation for linear multi-task model.}
 \usage{
 MTComputeMeanCorrelation(Y, beta, X = NULL, task.specific.features = list(),
-  method = "spearman")
+  pred = NULL, method = "spearman")
 }
 \arguments{
 \item{Y}{Column centered N by K output matrix for every task.}
@@ -18,6 +18,8 @@ MTComputeMeanCorrelation(Y, beta, X = NULL, task.specific.features = list(),
 each task. Each entry contains an N by J2 column-centered matrix for one
 particular task (where columns are features). List has to be ordered
 according to the columns of Y.}
+
+\item{pred}{Predicted output matrix. If NULL, compute predictions using input features.}
 
 \item{method}{Correlation method to use.}
 }
