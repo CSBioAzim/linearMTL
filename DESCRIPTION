@@ -3,6 +3,8 @@ Type: Package
 Title: Linear Models for Multi-Task Learning
 Version: 0.1.0
 Author: Tobi Heinen
+URL: https://github.com/tohein/LinearMTL
+BugReports: https://github.com/tohein/LinearMTL/issues
 Maintainer: Tobi Heinen <theinen@mpi-inf.mpg.de>
 Description: Sparse Linear Models for Multi-Task Learning.
 License: GPL (>= 2)
