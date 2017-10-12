@@ -253,6 +253,7 @@ ComputeObjective <- function(Y, beta, X = NULL, task.specific.features = list(),
 #'   membership: Task k in group v iff groups[v,k] == 1.} \item{weights}{V
 #'   dimensional weight vector.}
 #'
+#' @importFrom stats as.dist cor hclust
 #' @seealso \code{\link{TreeGuidedGroupLasso}},
 #'   \code{\link{ComputeGroupWeights}}.
 #' @export

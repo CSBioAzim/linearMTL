@@ -56,14 +56,18 @@ MTPredict <- function(beta, X = NULL, task.specific.features = list()) {
 #'   each task. Each entry contains an N by J2 column-centered matrix for one
 #'   particular task (where columns are features). List has to be ordered
 #'   according to the columns of Y.
+#' @param pred Predicted output matrix. If NULL, compute predictions using input features.
 #' @param normalize Compute mean (TRUE) or sum (FALSE).
 #'
 #' @return The (mean) squared error between predictions for each task and Y.
 #'
 #' @export
-MTComputeError <- function (Y, beta, X = NULL, task.specific.features = list(), normalize = TRUE) {
+MTComputeError <- function (Y, beta, X = NULL, task.specific.features = list(),
+                            pred = NULL, normalize = TRUE) {
 
-  pred <- MTPredict(beta = beta, X = X, task.specific.features = task.specific.features)
+  if (is.null(pred)) {
+    pred <- MTPredict(beta = beta, X = X, task.specific.features = task.specific.features)
+  }
 
   if (normalize) {
     return(mean((Y - pred)^2))
@@ -81,14 +85,19 @@ MTComputeError <- function (Y, beta, X = NULL, task.specific.features = list(), 
 #'   each task. Each entry contains an N by J2 column-centered matrix for one
 #'   particular task (where columns are features). List has to be ordered
 #'   according to the columns of Y.
+#' @param pred Predicted output matrix. If NULL, compute predictions using input features.
 #' @param method Correlation method to use.
 #'
 #' @return The mean correlation between predictions for each task and Y.
 #'
+#' @importFrom stats cor
 #' @export
-MTComputeMeanCorrelation <- function (Y, beta, X = NULL, task.specific.features = list(), method = "spearman") {
+MTComputeMeanCorrelation <- function (Y, beta, X = NULL, task.specific.features = list(),
+                                      pred = NULL, method = "spearman") {
 
-  pred <- MTPredict(beta = beta, X = X, task.specific.features = task.specific.features)
+  if (is.null(pred)) {
+    pred <- MTPredict(beta = beta, X = X, task.specific.features = task.specific.features)
+  }
   return(mean(diag(cor(pred, Y, method = method))))
 }
 
