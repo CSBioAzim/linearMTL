@@ -5,8 +5,10 @@
 #' Evaluate LinearMTL model.
 #'
 #' Compute training and test errors for the given indices as well as error
-#' changes for excluding features. If task.grouping is supplied, plot clustering
-#' of the regression coefficients along with the most important features.
+#' changes for excluding features. If task.grouping is supplied, identify top
+#' regulators per group and plot clustering of the regression coefficients along
+#' with the most important features. Save plots to directory out.dir or plot
+#' to screen if out.dir is NULL.
 #'
 #' @param X Column centered N by J input matrix of features common to all tasks.
 #' @param task.specific.features Named list of features which are specific to
@@ -22,7 +24,14 @@
 #' @param task.names Task names.
 #' @param sd.threshold All features with error changes above sd.threshold times
 #'   the standard deviation will be taken as important.
-#' @param out.dir Output directory.
+#' @param out.dir Output directory for plots.
+#'
+#' @return List containing
+#'     \item{err.out}{Matrix containing training and test correlation and MSE.}
+#'      \item{error.change}{Error changes for excluding features from the
+#'      predictions.}
+#'      \item{regulators.and.targets}{If task.grouping is not NULL: Matrix
+#'      of strings containing top regulators and their targets.}
 #'
 #' @export
 EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, B,
@@ -77,48 +86,36 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
   err.out["test", "mse"] <- MTComputeError(Y = Y[test.idx, ], beta = B, pred = test.pred)
   err.out["test", "cor"] <- MTComputeMeanCorrelation(Y = Y[test.idx, ], beta = B, pred = test.pred)
 
-  # print / save
+  # print matrix
   print(err.out)
-  if (!is.null(out.dir)) {
-    write.table(err.out, file = sprintf("%s/err.txt", out.dir),
-                quote = FALSE, sep = '\t')
+
+  # compute error changes
+  if (is.null(feature.names)) {
+    feature.names <- 1:J
+  }
+  if (is.null(task.names)) {
+    task.names <- 1:K
   }
 
-  if (!is.null(out.dir) | !is.null(task.grouping)) {
-    # compute error changes
-    if (is.null(feature.names)) {
-      feature.names <- 1:J
-    }
-    if (is.null(task.names)) {
-      task.names <- 1:K
-    }
+  squared.diff <- MTComputeError(Y = Y[train.idx, ], beta = B, pred = train.pred, normalize = FALSE)
+  error.change <- matrix(0, J, K, dimnames = list(feature.names, task.names))
 
-    squared.diff <- MTComputeError(Y = Y[train.idx, ], beta = B, pred = train.pred, normalize = FALSE)
-    error.change <- matrix(0, J, K, dimnames = list(feature.names, task.names))
-
-    print("Computing error changes ... ")
-    # compute error change for excluding common features
-    for (j in 1:J1) {
-      feature.contribution <- MTPredict(beta = B, X = X[train.idx, j, drop = FALSE])
-      error.change[j, ] <- colSums(((train.pred - feature.contribution) - Y[train.idx, ])^2 - squared.diff)
-    }
-    # compute error change for excluding task specific features
-    if (length(task.specific.features) > 0) {
-      for (j in 1:J2) {
-        feat.task.specific.features <- lapply(task.specific.features, FUN = function(x){x[train.idx, j, drop = FALSE]})
-        feature.contribution <- MTPredict(beta = B, task.specific.features = feat.task.specific.features)
-        error.change[J1 + j, ] <- colSums(((train.pred - feature.contribution) - Y[train.idx, ])^2 - squared.diff)
-      }
-    }
-
-    error.change <- error.change / nrow(Y[train.idx,])
-    # output error changes
-    if (!is.null(out.dir)) {
-      write.table(error.change,
-                  file = sprintf("%s/Feature_selection.txt", out.dir),
-                  quote = FALSE, sep = '\t')
+  print("Computing error changes ... ")
+  # compute error change for excluding common features
+  for (j in 1:J1) {
+    feature.contribution <- MTPredict(beta = B, X = X[train.idx, j, drop = FALSE])
+    error.change[j, ] <- colSums(((train.pred - feature.contribution) - Y[train.idx, ])^2 - squared.diff)
+  }
+  # compute error change for excluding task specific features
+  if (length(task.specific.features) > 0) {
+    for (j in 1:J2) {
+      feat.task.specific.features <- lapply(task.specific.features, FUN = function(x){x[train.idx, j, drop = FALSE]})
+      feature.contribution <- MTPredict(beta = B, task.specific.features = feat.task.specific.features)
+      error.change[J1 + j, ] <- colSums(((train.pred - feature.contribution) - Y[train.idx, ])^2 - squared.diff)
     }
   }
+
+  error.change <- error.change / nrow(Y[train.idx,])
 
   if (!is.null(task.grouping)) {
     dimnames(B) <- list(feature.names, task.names)
@@ -179,23 +176,33 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
 
     # write candidate regulators and their target regulation to tab separated file
     max.length <- max(sapply(candidate.regulators, length))
-    output <- matrix ('', nrow = max.length, ncol = length(candidate.regulators) * 3)
+    regulators.and.targets <- matrix ('',
+                                      nrow = max.length,
+                                      ncol = length(candidate.regulators) * 3)
     index <- 1
-    for (group in labels(tasks.by.group)) {
-      output[1:length(candidate.regulators[[group]]), index]  <- candidate.regulators[[group]]
-      output[1:length(candidate.regulators[[group]]), index + 1]  <- target.regulation[[group]]
+    for (group in names(tasks.by.group)) {
+      num.of.regs <- length(candidate.regulators[[group]])
+      if (num.of.regs > 0) {
+        regulators.and.targets[1:num.of.regs, index]  <- candidate.regulators[[group]]
+        regulators.and.targets[1:num.of.regs, index + 1]  <- target.regulation[[group]]
+      } else {
+        print(sprintf("Warning: Could not identify candidate regulators for group %s!", group))
+        print("         Consider decreasing sd.threshold.")
+      }
       index <- index + 3
     }
     if (length(candidate.regulators$Common) > 0) {
-      output[1:length(candidate.regulators$Common), index] <- candidate.regulators$Common
+      regulators.and.targets[1:length(candidate.regulators$Common), index] <- candidate.regulators$Common
     }
-    colnames(output) <- rep('', ncol(output))
-    colnames(output)[seq(1, ncol(output), 3)] <- c(names(tasks.by.group), 'Common')
+    colnames(regulators.and.targets) <- rep('', ncol(regulators.and.targets))
+    colnames(regulators.and.targets)[seq(1, ncol(regulators.and.targets), 3)] <- c(names(tasks.by.group), 'Common')
 
-    if (!is.null(out.dir)) {
-      write.table(output, file = sprintf("%s/Candidate_regulators.txt", out.dir),
-                  quote = FALSE, sep = '\t', row.names = FALSE)
-    }
+  }
+  if (!is.null(task.grouping)) {
+    return(list(err.out = err.out, error.change = error.change,
+                regulators.and.targets = regulators.and.targets))
+  } else {
+    return(list(err.out = err.out, error.change = error.change))
   }
 }
 
@@ -211,11 +218,12 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
 #' @param B.list List of J by K matrices of regression coefficients, J = J1 + J2.
 #' @param train.idx.by.cluster List of training indices per cluster.
 #' @param test.idx.by.cluster List of test indices per cluster.
-#' @param out.dir Output directory.
+#'
+#' @return Matrix containing training and test correlation and MSE.
 #'
 #' @export
-EvaluateClusteredTreeGuidedGroupLasso <- function(X = NULL, task.specific.features = list(), Y, B.list,
-                                                  train.idx.by.cluster, test.idx.by.cluster, out.dir = NULL) {
+EvaluateClusteredLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, B.list,
+                                           train.idx.by.cluster, test.idx.by.cluster) {
 
   # initialization and error checking
   if (is.null(X) & (length(task.specific.features) == 0)) {
@@ -280,9 +288,7 @@ EvaluateClusteredTreeGuidedGroupLasso <- function(X = NULL, task.specific.featur
 
   # print / save
   print(err.out)
-  if (!is.null(out.dir)) {
-    write.table(err.out, file = sprintf("%s/err.txt", out.dir), quote = FALSE, sep = '\t')
-  }
+  return(err.out)
 }
 
 

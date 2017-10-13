@@ -2,7 +2,7 @@
 
 export(BuildTreeHC)
 export(ComputeGroupWeights)
-export(EvaluateClusteredTreeGuidedGroupLasso)
+export(EvaluateClusteredLinearMTModel)
 export(EvaluateLinearMTModel)
 export(MTComputeError)
 export(MTComputeMeanCorrelation)
