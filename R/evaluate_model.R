@@ -72,10 +72,10 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
   dimnames(err.out) <- list(c("train", "test"), c("mse", "cor"))
 
   err.out["train", "mse"] <- MTComputeError(Y = Y[train.idx, ], beta = B, pred = train.pred)
-  err.out["train", "cor"] <- MTComputeMeanCorrelation(Y = Y[train.idx], beta = B, pred = train.pred)
+  err.out["train", "cor"] <- MTComputeMeanCorrelation(Y = Y[train.idx, ], beta = B, pred = train.pred)
 
   err.out["test", "mse"] <- MTComputeError(Y = Y[test.idx, ], beta = B, pred = test.pred)
-  err.out["test", "cor"] <- MTComputeMeanCorrelation(Y = Y[test.idx], beta = B, pred = test.pred)
+  err.out["test", "cor"] <- MTComputeMeanCorrelation(Y = Y[test.idx, ], beta = B, pred = test.pred)
 
   # print / save
   print(err.out)
@@ -84,37 +84,40 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
                 quote = FALSE, sep = '\t')
   }
 
-  # compute error changes
-  if (is.null(feature.names)) {
-    feature.names <- 1:J
-  }
-  if (is.null(task.names)) {
-    task.names <- 1:K
-  }
-
-  squared.diff <- MTComputeError(Y = Y[train.idx, ], beta = B, pred = train.pred, normalize = FALSE)
-  error.change <- matrix(0, J, K, dimnames = list(feature.names, task.names))
-
-  print("Computing error changes ... ")
-  # compute error change for excluding common features
-  for (j in 1:J1) {
-    feature.contribution <- MTPredict(beta = B, X = X[train.idx, j, drop = FALSE])
-    error.change[j, ] <- colSums(((train.pred - feature.contribution) - Y[train.idx, ])^2 - squared.diff)
-  }
-  # compute error change for excluding task specific features
-  if (length(task.specific.features) > 0) {
-    for (j in 1:J2) {
-      feat.task.specific.features <- lapply(task.specific.features, FUN = function(x){x[train.idx, j, drop = FALSE]})
-      feature.contribution <- MTPredict(beta = B, task.specific.features = feat.task.specific.features)
-      error.change[J1 + j, ] <- colSums(((train.pred - feature.contribution) - Y[train.idx, ])^2 - squared.diff)
+  if (!is.null(out.dir) | !is.null(task.grouping)) {
+    # compute error changes
+    if (is.null(feature.names)) {
+      feature.names <- 1:J
     }
-  }
+    if (is.null(task.names)) {
+      task.names <- 1:K
+    }
 
-  error.change <- error.change / nrow(Y[train.idx,])
-  # output error changes
-  if (!is.null(out.dir)) {
-    write.table(error.change, file = sprintf("%s/Feature_selection.txt", out.dir),
-                quote = FALSE, sep = '\t')
+    squared.diff <- MTComputeError(Y = Y[train.idx, ], beta = B, pred = train.pred, normalize = FALSE)
+    error.change <- matrix(0, J, K, dimnames = list(feature.names, task.names))
+
+    print("Computing error changes ... ")
+    # compute error change for excluding common features
+    for (j in 1:J1) {
+      feature.contribution <- MTPredict(beta = B, X = X[train.idx, j, drop = FALSE])
+      error.change[j, ] <- colSums(((train.pred - feature.contribution) - Y[train.idx, ])^2 - squared.diff)
+    }
+    # compute error change for excluding task specific features
+    if (length(task.specific.features) > 0) {
+      for (j in 1:J2) {
+        feat.task.specific.features <- lapply(task.specific.features, FUN = function(x){x[train.idx, j, drop = FALSE]})
+        feature.contribution <- MTPredict(beta = B, task.specific.features = feat.task.specific.features)
+        error.change[J1 + j, ] <- colSums(((train.pred - feature.contribution) - Y[train.idx, ])^2 - squared.diff)
+      }
+    }
+
+    error.change <- error.change / nrow(Y[train.idx,])
+    # output error changes
+    if (!is.null(out.dir)) {
+      write.table(error.change,
+                  file = sprintf("%s/Feature_selection.txt", out.dir),
+                  quote = FALSE, sep = '\t')
+    }
   }
 
   if (!is.null(task.grouping)) {
@@ -160,7 +163,7 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
     }
 
     # extract the selected features and overlay the dendrogram
-    coefficient.dendrogram <- as.dendrogram(hclust(as.dist(1 - cor(B, method = 's'))))
+    coefficient.dendrogram <- as.dendrogram(hclust(as.dist(1 - cor(B, method = 'pearson'))))
     regulators <- unique(unlist(candidate.regulators))
     if (length(regulators) < 2) {
       regulators.to.plot <- union(feature.names[1:2], regulators)
@@ -270,10 +273,10 @@ EvaluateClusteredTreeGuidedGroupLasso <- function(X = NULL, task.specific.featur
   dimnames(err.out) <- list(c("train", "test"), c("mse", "cor"))
 
   err.out["train", "mse"] <- MTComputeError(Y = Y[train.idx, ], beta = B, pred = train.pred)
-  err.out["train", "cor"] <- MTComputeMeanCorrelation(Y = Y[train.idx], beta = B, pred = train.pred)
+  err.out["train", "cor"] <- MTComputeMeanCorrelation(Y = Y[train.idx, ], beta = B, pred = train.pred)
 
   err.out["test", "mse"] <- MTComputeError(Y = Y[test.idx, ], beta = B, pred = test.pred)
-  err.out["test", "cor"] <- MTComputeMeanCorrelation(Y = Y[test.idx], beta = B, pred = test.pred)
+  err.out["test", "cor"] <- MTComputeMeanCorrelation(Y = Y[test.idx, ], beta = B, pred = test.pred)
 
   # print / save
   print(err.out)
