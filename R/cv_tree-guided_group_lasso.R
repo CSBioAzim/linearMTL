@@ -160,7 +160,8 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
   weights <- parameter.grid[min.idx, 2:ncol(parameter.grid)]
 
   # retrain model
-  full.model <- TreeGuidedGroupLasso(X = X, Y = Y, groups = groups, weights = weights, lambda = lambda, ...)
+  full.model <- TreeGuidedGroupLasso(X = X, task.specific.features = task.specific.features,
+                                     Y = Y, groups = groups, weights = weights, lambda = lambda, ...)
   train.end.time <- Sys.time()
   print(sprintf("Minutes to run train full model : %0.1f", as.numeric(train.end.time - train.start.time, units = "mins")))
 
