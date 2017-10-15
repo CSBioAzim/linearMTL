@@ -56,7 +56,7 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
   if (ncol(Y) != ncol(groups)) {
     stop("X and groups must have the same number of columns!")
   }
-  if (length(weights) != nrow(groups)) {
+  if (ncol(weights.matrix) != nrow(groups)) {
     stop("Length of weights has to equal number of rows of groups!")
   }
 
