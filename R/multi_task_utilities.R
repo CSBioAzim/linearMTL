@@ -7,7 +7,7 @@
 #' Compute linear predictions from predictor variables and regression
 #' coefficients.
 #'
-#' @param beta J by K matrix of regression coefficients, J = J1 + J2.
+#' @param B J by K matrix of regression coefficients, J = J1 + J2.
 #' @param X N by J1 matrix of features common to all tasks.
 #' @param task.specific.features Named list of features which are specific to
 #'   each task. Each entry contains an N by J2 column-centered matrix for one
@@ -17,31 +17,50 @@
 #' @return N by J predictions matrix.
 #'
 #' @export
-MTPredict <- function(beta, X = NULL, task.specific.features = list()) {
+MTPredict <- function(B, X = NULL, task.specific.features = list()) {
+
+  K <- ncol(B)
 
   if (is.null(X) & (length(task.specific.features) == 0)) {
     stop("No input data supplied.")
   }
 
-  K <- ncol(beta)
-  # compute predictions for shared feature matrix
+  # check for shared features
+  J1 <- 0
   if (!is.null(X)) {
     J1 <- ncol(X)
-    # first J1 rows of beta correspond to features in X
-    prediction <- X %*% beta[1:J1, ]
+  }
+
+  # check for task specific features
+  J2 <- 0
+  if (length(task.specific.features) > 0) {
+    if (length(task.specific.features) != K) {
+      stop("B must have one column per element in task.specific.features!")
+    }
+    J2 <- ncol(task.specific.features[[1]])
+  }
+
+  J <- J1 + J2
+  if (nrow(B) != J) {
+    stop("Incorrect number of dimensions: B must have one row per feature!")
+  }
+
+  # compute predictions for shared feature matrix
+  if (J1 > 0) {
+    prediction <- X %*% B[1:J1, ]
   } else {
-    J1 <- 0
+    # we must have task specific features
     C <- task.specific.features[[1]]
-    prediction <- matrix(0, nrow = nrow(C), ncol = ncol(beta))
+    prediction <- matrix(0, nrow = nrow(C), ncol = ncol(B))
   }
 
   # compute predictions for task specific feature matrices
-  if (length(task.specific.features) > 0) {
-    # rows J1 + 1 and below of beta correspond to task specific features
-    tsf.idx <- (J1 + 1):nrow(beta)
+  if (J2 > 0) {
+    # rows J1 + 1 and below of B correspond to task specific features
+    tsf.idx <- (J1 + 1):nrow(B)
     for (k in 1:K) {
       C <- task.specific.features[[k]]
-      prediction[, k] <- prediction[, k] + C %*% beta[tsf.idx, k]
+      prediction[, k] <- prediction[, k] + C %*% B[tsf.idx, k]
     }
   }
   return(prediction)
@@ -50,7 +69,7 @@ MTPredict <- function(beta, X = NULL, task.specific.features = list()) {
 #' Compute (mean) squared error for linear multi-task model.
 #'
 #' @param Y Column centered N by K output matrix for every task.
-#' @param beta J by K matrix of regression coefficients, J = J1 + J2.
+#' @param B J by K matrix of regression coefficients, J = J1 + J2.
 #' @param X N by J1 matrix of features common to all tasks.
 #' @param task.specific.features Named list of features which are specific to
 #'   each task. Each entry contains an N by J2 column-centered matrix for one
@@ -62,11 +81,15 @@ MTPredict <- function(beta, X = NULL, task.specific.features = list()) {
 #' @return The (mean) squared error between predictions for each task and Y.
 #'
 #' @export
-MTComputeError <- function (Y, beta, X = NULL, task.specific.features = list(),
+MTComputeError <- function (Y, B, X = NULL, task.specific.features = list(),
                             pred = NULL, normalize = TRUE) {
 
   if (is.null(pred)) {
-    pred <- MTPredict(beta = beta, X = X, task.specific.features = task.specific.features)
+    pred <- MTPredict(B = B, X = X, task.specific.features = task.specific.features)
+  } else {
+    if (!isTRUE(all.equal(dim(pred), dim(Y)))) {
+      stop("Dimensions of pred and Y have to coincide!")
+    }
   }
 
   if (normalize) {
@@ -79,7 +102,7 @@ MTComputeError <- function (Y, beta, X = NULL, task.specific.features = list(),
 #' Compute (mean) correlation for linear multi-task model.
 #'
 #' @param Y Column centered N by K output matrix for every task.
-#' @param beta J by K matrix of regression coefficients, J = J1 + J2.
+#' @param B J by K matrix of regression coefficients, J = J1 + J2.
 #' @param X N by J1 matrix of features common to all tasks.
 #' @param task.specific.features Named list of features which are specific to
 #'   each task. Each entry contains an N by J2 column-centered matrix for one
@@ -92,11 +115,15 @@ MTComputeError <- function (Y, beta, X = NULL, task.specific.features = list(),
 #'
 #' @importFrom stats cor
 #' @export
-MTComputeMeanCorrelation <- function (Y, beta, X = NULL, task.specific.features = list(),
+MTComputeMeanCorrelation <- function (Y, B, X = NULL, task.specific.features = list(),
                                       pred = NULL, method = "spearman") {
 
   if (is.null(pred)) {
-    pred <- MTPredict(beta = beta, X = X, task.specific.features = task.specific.features)
+    pred <- MTPredict(B = B, X = X, task.specific.features = task.specific.features)
+  } else {
+    if (!isTRUE(all.equal(dim(pred), dim(Y)))) {
+      stop("Dimensions of pred and Y have to coincide!")
+    }
   }
   return(mean(diag(cor(pred, Y, method = method))))
 }
@@ -131,8 +158,15 @@ PrepareMatrices <- function(Y, X = NULL, task.specific.features = list(), idx = 
   # initialize variables
   K <- ncol(Y)
   N <- nrow(Y)
-  J1 <- if (is.null(X)) 0 else nrow(X)
-  J2 <- if(length(task.specific.features) == 0) 0 else ncol(task.specific.features[[1]])
+
+  J1 <- 0
+  if (!is.null(X)) {
+    J1 <- ncol(X)
+  }
+  J2 <- 0
+  if(length(task.specific.features) > 0) {
+    J2 <- ncol(task.specific.features[[1]])
+  }
   J <- J1 + J2
 
   if (is.null(idx)) {
