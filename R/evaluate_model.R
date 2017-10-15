@@ -72,7 +72,7 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
   }
 
   # compute predictions
-  predictions <- MTPredict(beta = B, X = X, task.specific.features = task.specific.features)
+  predictions <- MTPredict(B = B, X = X, task.specific.features = task.specific.features)
   train.pred <- predictions[train.idx, ]
   test.pred <- predictions[test.idx, ]
 
@@ -80,11 +80,11 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
   err.out <- matrix(0, nrow = 2, ncol = 2)
   dimnames(err.out) <- list(c("train", "test"), c("mse", "cor"))
 
-  err.out["train", "mse"] <- MTComputeError(Y = Y[train.idx, ], beta = B, pred = train.pred)
-  err.out["train", "cor"] <- MTComputeMeanCorrelation(Y = Y[train.idx, ], beta = B, pred = train.pred)
+  err.out["train", "mse"] <- MTComputeError(Y = Y[train.idx, ], B = B, pred = train.pred)
+  err.out["train", "cor"] <- MTComputeMeanCorrelation(Y = Y[train.idx, ], B = B, pred = train.pred)
 
-  err.out["test", "mse"] <- MTComputeError(Y = Y[test.idx, ], beta = B, pred = test.pred)
-  err.out["test", "cor"] <- MTComputeMeanCorrelation(Y = Y[test.idx, ], beta = B, pred = test.pred)
+  err.out["test", "mse"] <- MTComputeError(Y = Y[test.idx, ], B = B, pred = test.pred)
+  err.out["test", "cor"] <- MTComputeMeanCorrelation(Y = Y[test.idx, ], B = B, pred = test.pred)
 
   # print matrix
   print(err.out)
@@ -97,20 +97,20 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
     task.names <- 1:K
   }
 
-  squared.diff <- MTComputeError(Y = Y[train.idx, ], beta = B, pred = train.pred, normalize = FALSE)
+  squared.diff <- MTComputeError(Y = Y[train.idx, ], B = B, pred = train.pred, normalize = FALSE)
   error.change <- matrix(0, J, K, dimnames = list(feature.names, task.names))
 
   print("Computing error changes ... ")
   # compute error change for excluding common features
   for (j in 1:J1) {
-    feature.contribution <- MTPredict(beta = B, X = X[train.idx, j, drop = FALSE])
+    feature.contribution <- MTPredict(B = B, X = X[train.idx, j, drop = FALSE])
     error.change[j, ] <- colSums(((train.pred - feature.contribution) - Y[train.idx, ])^2 - squared.diff)
   }
   # compute error change for excluding task specific features
   if (length(task.specific.features) > 0) {
     for (j in 1:J2) {
       feat.task.specific.features <- lapply(task.specific.features, FUN = function(x){x[train.idx, j, drop = FALSE]})
-      feature.contribution <- MTPredict(beta = B, task.specific.features = feat.task.specific.features)
+      feature.contribution <- MTPredict(B = B, task.specific.features = feat.task.specific.features)
       error.change[J1 + j, ] <- colSums(((train.pred - feature.contribution) - Y[train.idx, ])^2 - squared.diff)
     }
   }
@@ -260,10 +260,10 @@ EvaluateClusteredLinearMTModel <- function(X = NULL, task.specific.features = li
     test.idx <- test.idx.by.cluster[[k]]
     B <- B.list[[k]]
 
-    predictions[train.idx, ] <- MTPredict(beta = B, X = X[train.idx, ],
+    predictions[train.idx, ] <- MTPredict(B = B, X = X[train.idx, ],
                                           task.specific.features = lapply(task.specific.features,
                                                                           FUN = function(x){x[train.idx, ]}))
-    predictions[test.idx, ] <- MTPredict(beta = B, X = X[test.idx, ],
+    predictions[test.idx, ] <- MTPredict(B = B, X = X[test.idx, ],
                                          task.specific.features = lapply(task.specific.features,
                                                                          FUN = function(x){x[test.idx, ]}))
   }
@@ -280,11 +280,11 @@ EvaluateClusteredLinearMTModel <- function(X = NULL, task.specific.features = li
   err.out <- matrix(0, nrow = 2, ncol = 2)
   dimnames(err.out) <- list(c("train", "test"), c("mse", "cor"))
 
-  err.out["train", "mse"] <- MTComputeError(Y = Y[train.idx, ], beta = B, pred = train.pred)
-  err.out["train", "cor"] <- MTComputeMeanCorrelation(Y = Y[train.idx, ], beta = B, pred = train.pred)
+  err.out["train", "mse"] <- MTComputeError(Y = Y[train.idx, ], B = B, pred = train.pred)
+  err.out["train", "cor"] <- MTComputeMeanCorrelation(Y = Y[train.idx, ], B = B, pred = train.pred)
 
-  err.out["test", "mse"] <- MTComputeError(Y = Y[test.idx, ], beta = B, pred = test.pred)
-  err.out["test", "cor"] <- MTComputeMeanCorrelation(Y = Y[test.idx, ], beta = B, pred = test.pred)
+  err.out["test", "mse"] <- MTComputeError(Y = Y[test.idx, ], B = B, pred = test.pred)
+  err.out["test", "cor"] <- MTComputeMeanCorrelation(Y = Y[test.idx, ], B = B, pred = test.pred)
 
   # print / save
   print(err.out)

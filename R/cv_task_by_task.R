@@ -16,7 +16,7 @@
 #'
 #' @return List containing
 #'    \item{lambda}{Best lambda for each task.}
-#'    \item{beta}{Final regression coefficients for the model fitted on the full data set.}
+#'    \item{B}{Final regression coefficients for the model fitted on the full data set.}
 #'    \item{error}{Cross-validation errors for each task.}
 #'
 #' @importFrom foreach foreach %dopar%
@@ -88,12 +88,12 @@ RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
 
     min.err <- which.min(cv.results$cvm)
     error <- min(cv.results$cvm)
-    beta <- cv.results$glmnet.fit$beta[, min.err]
+    B <- cv.results$glmnet.fit$B[, min.err]
     lambda <- cv.results$lambda[min.err]
-    return(list(lambda = lambda, beta = beta, error = error))
+    return(list(lambda = lambda, B = B, error = error))
   }
 
-  tbt.beta <- matrix(0, nrow = J, ncol = K)
+  tbt.B <- matrix(0, nrow = J, ncol = K)
   # store best lambda for each task
   lambda <- rep(0, ncol(X))
   # store MSE for each task
@@ -102,10 +102,10 @@ RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
   doMC::registerDoMC(num.threads)
   cv.results <- foreach(task = 1:K) %dopar% RunParameter(task)
   for (task in 1:K) {
-    tbt.beta[, task] <- cv.results[[task]]$beta
+    tbt.B[, task] <- cv.results[[task]]$B
     lambda[task] <- cv.results[[task]]$lambda
     err[task] <- cv.results[[task]]$error
   }
 
-  return(list(lambda = lambda, beta = tbt.beta, error = err))
+  return(list(lambda = lambda, B = tbt.B, error = err))
 }

@@ -24,7 +24,7 @@
 #'   PrepareMatrices.
 #' @param XTY Precomputed matrices t(X)*Y as for example produced by
 #'   PrepareMatrices
-#' @param init.beta J by K matrix with initializations for the regression
+#' @param init.B J by K matrix with initializations for the regression
 #'   coefficients.
 #' @param verbose Integer in {0,1,2}. verbose = 0: No output. verbose = 1: Print
 #'   summary at the end of the optimization. verbose = 2: Print progress during
@@ -33,7 +33,7 @@
 #' @return List containing
 #'   \item{lambda}{Regularization parameter used.}
 #'   \item{weights}{Node weights used.}
-#'   \item{beta}{Final estimate of the regression coefficients.}
+#'   \item{B}{Final estimate of the regression coefficients.}
 #'   \item{obj}{Final objective value.}
 #'   \item{early.termination}{Boolean indicating whether the algorithm exceeded
 #'   max.iter iterations.}
@@ -42,7 +42,7 @@
 #' @export
 TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
                                   groups, weights, lambda, max.iter = 10000, epsilon = 1e-5,
-                                  mu = NULL, mu.adapt = 1, XTX = NULL, XTY = NULL, init.beta = NULL, verbose = 1) {
+                                  mu = NULL, mu.adapt = 1, XTX = NULL, XTY = NULL, init.B = NULL, verbose = 1) {
 
   # initialization and error checking
   if (is.null(X) & (length(task.specific.features) == 0)) {
@@ -143,16 +143,16 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
   L <- L1 + C.norm.squared / mu
 
   # initialize variables
-  if (is.null(init.beta)) {
+  if (is.null(init.B)) {
     B <- matrix(0, nrow = J, ncol = K)
   } else {
-    B <- init.beta
+    B <- init.B
   }
   W <- B
   iter <- 0
   theta <- 1
   delta <- epsilon + 1
-  obj.old <- ComputeObjective(Y = Y, beta = B, X = X,
+  obj.old <- ComputeObjective(Y = Y, B = B, X = X,
                               task.specific.features = task.specific.features,
                               C = C, group.ranges = group.ranges)
   dh <- matrix(0, nrow = J, ncol = K)
@@ -177,7 +177,7 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
     W <- B.new + (1 - theta) / theta * theta.new * (B.new - B)
 
     # compute new objective
-    obj <- ComputeObjective(Y = Y, beta = B.new, X = X,
+    obj <- ComputeObjective(Y = Y, B = B.new, X = X,
                             task.specific.features = task.specific.features,
                             C = C, group.ranges = group.ranges)
     delta <- abs(obj - obj.old) / abs(obj.old)
@@ -203,16 +203,20 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
   if (early.termination) {
     print(sprintf("Warning: Reached maximum number of iterations (%d).", max.iter))
   }
-  return(list(lambda = lambda, weights = weights, beta = B, obj = obj, early.termination = early.termination))
+  return(list(lambda = lambda, weights = weights, B = B, obj = obj, early.termination = early.termination))
 }
 
 Shrink <- function(A, group.ranges) {
   # Applies shrinkage operator to matrix A.
+  #
+  # A is matrix of size (cumsum(inner group sizes)) by J.
+  # Shrink all vectors A[group ids, j].
   V <- nrow(group.ranges)
   for (v in 1:V) {
     idx <- group.ranges[v, 1]:group.ranges[v, 2]
-    gnorm <- sqrt(colSums(A[idx,]^2))
-    A[idx, ] <- sweep(A[idx, ], 2, pmax(gnorm , 1), FUN = "/")
+    gnorm <- sqrt(colSums(A[idx, ,drop = FALSE]^2))
+    A[idx, ] <- sweep(A[idx, ,drop = FALSE], 2,
+                      pmax(gnorm , 1), FUN = "/")
   }
   return(A)
 }
@@ -223,18 +227,18 @@ CalculateInnerGroupPenalty <- function(A, group.ranges) {
   s <- 0
   for (v in 1:V) {
     idx <- group.ranges[v, 1]:group.ranges[v, 2]
-    gnorm <- sqrt(colSums(A[idx,]^2))
+    gnorm <- sqrt(colSums(A[idx, ,drop = FALSE]^2))
     s <- s + sum(gnorm)
   }
   return(s)
 }
 
-ComputeObjective <- function(Y, beta, X = NULL, task.specific.features = list(), C, group.ranges) {
+ComputeObjective <- function(Y, B, X = NULL, task.specific.features = list(), C, group.ranges) {
   # Compute the optimization objective
-  obj <- 1/2 * MTComputeError(Y = Y, beta = beta, X = X,
+  obj <- 1/2 * MTComputeError(Y = Y, B = B, X = X,
                               task.specific.features = task.specific.features,
                               normalize = FALSE)
-  obj <- obj + CalculateInnerGroupPenalty(C %*% t(beta), group.ranges)
+  obj <- obj + CalculateInnerGroupPenalty(C %*% t(B), group.ranges)
   return(obj)
 }
 
@@ -315,8 +319,12 @@ ComputeGroupWeights <- function(groups, s) {
   V <- nrow(groups)
   K <- ncol(groups)
 
+  if (length(s) != V) {
+    stop("s does not contain one entry for every group!")
+  }
+
   if (sum(rowSums(groups) == 1) != K) {
-    stop("groups does not contain K singletons.")
+    stop("groups does not contain K singletons!")
   }
 
   # make sure that singleton groups are at position 1:K
