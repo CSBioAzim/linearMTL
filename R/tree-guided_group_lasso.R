@@ -164,7 +164,7 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
     if (length(task.specific.features) > 0) {
       # task specific features
       for (k in 1:K) {
-        dh[, k] <- XTX[[k]] %*% W[, k] - XTY[[k]]
+        dh[, k] <- XTX[[k]] %*% W[, k] - XTY[, k]
       }
       dh <- dh + df
     } else {
@@ -241,6 +241,8 @@ ComputeObjective <- function(Y, B, X = NULL, task.specific.features = list(), C,
   obj <- obj + CalculateInnerGroupPenalty(C %*% t(B), group.ranges)
   return(obj)
 }
+
+
 
 
 #' Construct tree for \code{\link{TreeGuidedGroupLasso}} using hierarchical
