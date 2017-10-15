@@ -28,7 +28,8 @@
 #' @seealso \code{\link{TreeGuidedGroupLasso}}
 #' @export
 RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
-                                        groups, weights.matrix, lambda.vec, num.folds = 10, num.threads = 1, ...) {
+                                     groups, weights.matrix, lambda.vec, num.folds = 10,
+                                     num.threads = 1, ...) {
   # initialization and error checking
   if (is.null(X) & (length(task.specific.features) == 0)) {
     stop("No input data supplied.")
@@ -45,7 +46,7 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
 
   # check for task specific features
   J2 <- 0
-  if (length(task.specific.features > 0)) {
+  if (length(task.specific.features) > 0) {
     if (nrow(task.specific.features[[1]]) != nrow(Y)) {
       stop("Task specific feature matrices and Y must have the same number of rows!")
     }
