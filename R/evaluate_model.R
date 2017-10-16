@@ -102,9 +102,11 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
 
   print("Computing error changes ... ")
   # compute error change for excluding common features
-  for (j in 1:J1) {
-    feature.contribution <- MTPredict(B = B, X = X[train.idx, j, drop = FALSE])
-    error.change[j, ] <- colSums(((train.pred - feature.contribution) - Y[train.idx, ])^2 - squared.diff)
+  if (J1 > 0) {
+    for (j in 1:J1) {
+      feature.contribution <- MTPredict(B = B, X = X[train.idx, j, drop = FALSE])
+      error.change[j, ] <- colSums(((train.pred - feature.contribution) - Y[train.idx, ])^2 - squared.diff)
+    }
   }
   # compute error change for excluding task specific features
   if (length(task.specific.features) > 0) {
