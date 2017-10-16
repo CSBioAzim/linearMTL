@@ -97,7 +97,7 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
     task.names <- 1:K
   }
 
-  squared.diff <- MTComputeError(Y = Y[train.idx, ], B = B, pred = train.pred, normalize = FALSE)
+  squared.diff <- (Y[train.idx, ] - train.pred)^2
   error.change <- matrix(0, J, K, dimnames = list(feature.names, task.names))
 
   print("Computing error changes ... ")
