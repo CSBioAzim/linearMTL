@@ -4,10 +4,10 @@
 \alias{MTPredict}
 \title{Compute predictions for linear multi-task model.}
 \usage{
-MTPredict(beta, X = NULL, task.specific.features = list())
+MTPredict(B, X = NULL, task.specific.features = list())
 }
 \arguments{
-\item{beta}{J by K matrix of regression coefficients, J = J1 + J2.}
+\item{B}{J by K matrix of regression coefficients, J = J1 + J2.}
 
 \item{X}{N by J1 matrix of features common to all tasks.}
 

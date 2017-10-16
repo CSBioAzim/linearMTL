@@ -4,13 +4,13 @@
 \alias{MTComputeMeanCorrelation}
 \title{Compute (mean) correlation for linear multi-task model.}
 \usage{
-MTComputeMeanCorrelation(Y, beta, X = NULL, task.specific.features = list(),
+MTComputeMeanCorrelation(Y, B, X = NULL, task.specific.features = list(),
   pred = NULL, method = "spearman")
 }
 \arguments{
 \item{Y}{Column centered N by K output matrix for every task.}
 
-\item{beta}{J by K matrix of regression coefficients, J = J1 + J2.}
+\item{B}{J by K matrix of regression coefficients, J = J1 + J2.}
 
 \item{X}{N by J1 matrix of features common to all tasks.}
 

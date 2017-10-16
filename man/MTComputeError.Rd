@@ -4,13 +4,13 @@
 \alias{MTComputeError}
 \title{Compute (mean) squared error for linear multi-task model.}
 \usage{
-MTComputeError(Y, beta, X = NULL, task.specific.features = list(),
+MTComputeError(Y, B, X = NULL, task.specific.features = list(),
   pred = NULL, normalize = TRUE)
 }
 \arguments{
 \item{Y}{Column centered N by K output matrix for every task.}
 
-\item{beta}{J by K matrix of regression coefficients, J = J1 + J2.}
+\item{B}{J by K matrix of regression coefficients, J = J1 + J2.}
 
 \item{X}{N by J1 matrix of features common to all tasks.}
 

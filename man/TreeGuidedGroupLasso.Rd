@@ -6,12 +6,12 @@
 \usage{
 TreeGuidedGroupLasso(X = NULL, task.specific.features = list(), Y, groups,
   weights, lambda, max.iter = 10000, epsilon = 1e-05, mu = NULL,
-  mu.adapt = 1, XTX = NULL, XTY = NULL, init.beta = NULL, verbose = 1)
+  mu.adapt = 1, XTX = NULL, XTY = NULL, init.B = NULL, verbose = 1)
 }
 \arguments{
 \item{X}{Column-centered N by J1 matrix of features common to all tasks.}
 
-\item{task.specific.features}{Named list of features which are specific to
+\item{task.specific.features}{List of features which are specific to
 each task. Each entry contains an N by J2 column-centered matrix for one
 particular task (where columns are features). List has to be ordered
 according to the columns of Y.}
@@ -41,7 +41,7 @@ PrepareMatrices.}
 \item{XTY}{Precomputed matrices t(X)*Y as for example produced by
 PrepareMatrices}
 
-\item{init.beta}{J by K matrix with initializations for the regression
+\item{init.B}{J by K matrix with initializations for the regression
 coefficients.}
 
 \item{verbose}{Integer in {0,1,2}. verbose = 0: No output. verbose = 1: Print
@@ -52,7 +52,7 @@ optimization.}
 List containing
   \item{lambda}{Regularization parameter used.}
   \item{weights}{Node weights used.}
-  \item{beta}{Final estimate of the regression coefficients.}
+  \item{B}{Final estimate of the regression coefficients.}
   \item{obj}{Final objective value.}
   \item{early.termination}{Boolean indicating whether the algorithm exceeded
   max.iter iterations.}
