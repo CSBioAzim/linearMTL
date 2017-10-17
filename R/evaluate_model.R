@@ -297,7 +297,18 @@ EvaluateClusteredLinearMTModel <- function(X = NULL, task.specific.features = li
 
 
 
-PlotCustomHeatmap <- function (matrix, scale = "none", trace = "none", RowV = TRUE,
+#' Plot customized heatmap.
+#'
+#' @param matrix Matrix to display.
+#' @param scale See heatmap.2.
+#' @param trace See heatmap.2
+#' @param task.grouping Vector of strings with groups for each task.
+#' @param dendro Dendrogram obtained from clustering the columns of the input matrix.
+#' @param density.info See heatmap.2.
+#' @param ... Other arguments passed to heatmap.2.
+#'
+#' @importFrom gplots heatmap.2
+PlotCustomHeatmap <- function (matrix, scale = "none", trace = "none",
                                task.grouping, dendro = "col", density.info = 'none', ...) {
 
   # heatmap colors
