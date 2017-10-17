@@ -39,4 +39,3 @@ test_that("CalculateInnerGroupPenalty correctly computes penalty.", {
   expect_equal(CalculateInnerGroupPenalty(A = A, group.ranges = group.ranges),
                expected.output)
 })
-

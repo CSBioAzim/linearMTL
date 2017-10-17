@@ -15,6 +15,7 @@
 #'   each task. Each entry contains an N by J2 column-centered matrix for one
 #'   particular task (where columns are features). List has to be ordered
 #'   according to the columns of Y.
+#' @param Y Column centered N by K output matrix for every task.
 #' @param B J by K matrix of regression coefficients, J = J1 + J2.
 #' @param train.idx Indices for the training set.
 #' @param test.idx Indices for the test set.
@@ -218,6 +219,7 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
 #'   each task. Each entry contains an N by J2 column-centered matrix for one
 #'   particular task (where columns are features). List has to be ordered
 #'   according to the columns of Y.
+#' @param Y Column centered N by K output matrix for every task.
 #' @param B.list List of J by K matrices of regression coefficients, J = J1 + J2.
 #' @param train.idx.by.cluster List of training indices per cluster.
 #' @param test.idx.by.cluster List of test indices per cluster.

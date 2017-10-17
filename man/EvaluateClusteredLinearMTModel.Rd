@@ -15,6 +15,8 @@ each task. Each entry contains an N by J2 column-centered matrix for one
 particular task (where columns are features). List has to be ordered
 according to the columns of Y.}
 
+\item{Y}{Column centered N by K output matrix for every task.}
+
 \item{B.list}{List of J by K matrices of regression coefficients, J = J1 + J2.}
 
 \item{train.idx.by.cluster}{List of training indices per cluster.}
