@@ -3,9 +3,12 @@
 #' Generate synthetic data as in Kim et al. 2010 and apply tree-guided group
 #' lasso and lasso models.
 #'
+#' @param method Method to use. "group" (TGGL), "tbt" (task-by-task), "all" (both).
+#'
 #' @importFrom lattice levelplot
+#' @importFrom grDevices gray
 #' @export
-TestLinearMTL <- function() {
+TestLinearMTL <- function(method = "group") {
   set.seed(12345)
   # number of data points
   N <- 150
@@ -51,67 +54,75 @@ TestLinearMTL <- function() {
   Ytrain.centered <- sweep(Ytrain, 2, center.Y, check.margin = TRUE)
   Ytest.centered <- sweep(Ytest, 2, center.Y, check.margin = TRUE)
 
-  ################################################################################
-  # GROUP MODEL
-  ################################################################################
-  M <- BuildTreeHC(Ytrain, 0.6)
-  lambda.vec = 10^seq(-2,2, length.out = 20)
-  # tggl <- RunGroupCrossvalidation(X = Xtrain.centered,
-  #                                 Y = Ytrain.centered,
-  #                                 groups = M$groups,
-  #                                 weights.matrix = matrix(M$weights, nrow = 1),
-  #                                 lambda.vec = lambda.vec,
-  #                                 max.iter = 10000,
-  #                                 epsilon = 1e-5,
-  #                                 mu = 0.001, mu.adapt = 0.99,
-  #                                 verbose = 1)
-  # group.B <- tggl$full.model$B
-  tggl <- TreeGuidedGroupLasso(X = Xtrain.centered,
-                               Y = Ytrain.centered,
-                               groups = M$groups,
-                               weights = M$weights,
-                               lambda = 20,
-                               max.iter = 10000,
-                               epsilon = 1e-5,
-                               mu = 0.001, mu.adapt = 0.99,
-                               verbose = 1)
-  group.B <- tggl$B
-  ################################################################################
-  # SBS MODEL
-  ################################################################################
-  lambda.vec = 10^seq(-5,2, length.out = 20)
-  tbt <- RunTBTCrossvalidation(X = Xtrain.centered,
-                               Y = Ytrain.centered,
-                               lambda.vec = lambda.vec)
-  sbs.B <- tbt$B
-  ################################################################################
-  # EVALUATION
-  ################################################################################
+  if ((method == "group") | (method == "all")) {
+    M <- BuildTreeHC(Ytrain, 0.6)
+    lambda.vec = 10^seq(-2,2, length.out = 15)
+    tggl <- RunGroupCrossvalidation(X = Xtrain.centered,
+                                    Y = Ytrain.centered,
+                                    groups = M$groups,
+                                    weights.matrix = matrix(M$weights, nrow = 1),
+                                    lambda.vec = lambda.vec,
+                                    max.iter = 10000,
+                                    epsilon = 1e-4,
+                                    mu = 0.001, mu.adapt = 0.99,
+                                    verbose = 0)
+    group.B <- tggl$full.model$B
+    # tggl <- TreeGuidedGroupLasso(X = Xtrain.centered,
+    #                              Y = Ytrain.centered,
+    #                              groups = M$groups,
+    #                              weights = M$weights,
+    #                              lambda = 20,
+    #                              max.iter = 10000,
+    #                              epsilon = 1e-5,
+    #                              mu = 0.001, mu.adapt = 0.99,
+    #                              verbose = 2)
+    # group.B <- tggl$B
+  }
+  if ((method == "tbt") | (method == "all")) {
+    lambda.vec = 10^seq(-5,2, length.out = 20)
+    tbt <- RunTBTCrossvalidation(X = Xtrain.centered,
+                                 Y = Ytrain.centered,
+                                 lambda.vec = lambda.vec)
+    sbs.B <- tbt$B
+  }
+
+  # evaluate
+
   # compute test error and test correlation
-  group.test.pred <- MTPredict(B = group.B, X = Xtest.centered)
-  group.err <- MTComputeError(Y = Ytest.centered, B = group.B, X = Xtest.centered)
-  group.cor <- MTComputeMeanCorrelation(Y = Ytest.centered, B = group.B, X = Xtest.centered)
-  print(sprintf("GROUP  - test mse: %f, test cor: %f", group.err, group.cor))
-
-  sbs.test.pred <- MTPredict(B = sbs.B, X = Xtest.centered)
-  sbs.err <- MTComputeError(Y = Ytest.centered, B = sbs.B, X = Xtest.centered)
-  sbs.cor <- MTComputeMeanCorrelation(Y = Ytest.centered, B = sbs.B, X = Xtest.centered)
-  print(sprintf("SBS    - test mse: %f, test cor: %f", sbs.err, sbs.cor))
-
+  if ((method == "group") | (method == "all")) {
+    group.test.pred <- MTPredict(B = group.B, X = Xtest.centered)
+    group.err <- MTComputeError(Y = Ytest.centered, B = group.B, X = Xtest.centered)
+    group.cor <- MTComputeMeanCorrelation(Y = Ytest.centered, B = group.B, X = Xtest.centered)
+    print(sprintf("GROUP  - test mse: %f, test cor: %f", group.err, group.cor))
+  }
+  if ((method == "tbt") | (method == "all")) {
+    sbs.test.pred <- MTPredict(B = sbs.B, X = Xtest.centered)
+    sbs.err <- MTComputeError(Y = Ytest.centered, B = sbs.B, X = Xtest.centered)
+    sbs.cor <- MTComputeMeanCorrelation(Y = Ytest.centered, B = sbs.B, X = Xtest.centered)
+    print(sprintf("SBS    - test mse: %f, test cor: %f", sbs.err, sbs.cor))
+  }
   opt.pred <- MTPredict(B = B.truth, X = Xtest.centered)
   opt.err <- MTComputeError(Y = Ytest.centered, B = B.truth, X = Xtest.centered)
   opt.cor <- MTComputeMeanCorrelation(Y = Ytest.centered, B = B.truth, X = Xtest.centered)
   print(sprintf("OPT    - test mse: %f, test cor: %f", opt.err, opt.cor))
 
+
   # plot coefficients
+  print("should plot")
   scl <- seq(-0.3,0.5, by = 0.01)
-  colreg <- gray(1:(length(scl)+1)/(length(scl)+1))
-  lattice::levelplot(group.B, at = scl, col.regions = colreg)
-  lattice::levelplot(sbs.B, at = scl, col.regions = colreg)
-  lattice::levelplot(B.truth, at = scl, col.regions = colreg)
+  colreg <- grDevices::gray(1:(length(scl)+1)/(length(scl)+1))
+  if ((method == "group") | (method == "all")) {
+    print(lattice::levelplot(group.B, at = scl, col.regions = colreg))
+  }
+  if ((method == "tbt") | (method == "all")) {
+    print(lattice::levelplot(sbs.B, at = scl, col.regions = colreg))
+  }
+  print(lattice::levelplot(B.truth, at = scl, col.regions = colreg))
 
   # plot error
-  plot(colSums((sbs.test.pred - Ytest.centered)^2) / N, col = "red", type = "p")
-  lines(colSums((group.test.pred - Ytest.centered)^2) / N, type = "p", col = "blue")
-  lines(colSums((Xtest.centered %*% B.truth - Ytest.centered)^2) / N, type = "p", col = "black")
+  if (method == "all") {
+    plot(colSums((sbs.test.pred - Ytest.centered)^2) / N, col = "red", type = "p")
+    lines(colSums((group.test.pred - Ytest.centered)^2) / N, type = "p", col = "blue")
+    lines(colSums((Xtest.centered %*% B.truth - Ytest.centered)^2) / N, type = "p", col = "black")
+  }
 }
