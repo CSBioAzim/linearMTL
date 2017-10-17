@@ -154,7 +154,8 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
   delta <- epsilon + 1
   obj.old <- ComputeObjective(Y = Y, B = B, X = X,
                               task.specific.features = task.specific.features,
-                              C = C, group.ranges = group.ranges)
+                              C = C, group.ranges = group.ranges, lambda = lambda,
+                              singleton.weights = singleton.weights)
   dh <- matrix(0, nrow = J, ncol = K)
   start.time <- Sys.time();
   while (iter < max.iter & delta > epsilon) {
@@ -176,14 +177,19 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
     theta.new <- 2 / (iter + 3)
     W <- B.new + (1 - theta) / theta * theta.new * (B.new - B)
 
-    # compute new objective
-    obj <- ComputeObjective(Y = Y, B = B.new, X = X,
-                            task.specific.features = task.specific.features,
-                            C = C, group.ranges = group.ranges)
-    delta <- abs(obj - obj.old) / abs(obj.old)
-    obj.old <- obj
-    if (verbose == 2) {
-      print(sprintf("Iter: %d, Obj: %f, delta: %f", iter, obj,delta))
+    # compute delta
+    delta <- sqrt(sum((B.new - B)^2)) / max(sqrt(sum(B.new^2)), 1)
+    if ((iter %% 100) == 0) {
+      # compute new objective
+      obj <- ComputeObjective(Y = Y, B = B.new, X = X,
+                              task.specific.features = task.specific.features,
+                              C = C, group.ranges = group.ranges, lambda = lambda,
+                              singleton.weights = singleton.weights)
+      delta <- min(delta, abs(obj - obj.old) / abs(obj.old))
+      obj.old <- obj
+      if (verbose == 2) {
+        print(sprintf("Iter: %d, Obj: %f, delta: %f", iter, obj, delta))
+      }
     }
 
     # adapt learning rate
@@ -195,6 +201,11 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
     iter <- iter + 1
   }
   end.time <- Sys.time()
+
+  obj <- ComputeObjective(Y = Y, B = B.new, X = X,
+                          task.specific.features = task.specific.features,
+                          C = C, group.ranges = group.ranges, lambda = lambda,
+                          singleton.weights = singleton.weights)
   if (verbose >= 1) {
     print(sprintf("Total: Iter: %d, Obj: %f, Time: %f", iter, obj, as.numeric(end.time - start.time, units = "secs")))
   }
@@ -233,12 +244,14 @@ CalculateInnerGroupPenalty <- function(A, group.ranges) {
   return(s)
 }
 
-ComputeObjective <- function(Y, B, X = NULL, task.specific.features = list(), C, group.ranges) {
+ComputeObjective <- function(Y, B, X = NULL, task.specific.features = list(),
+                             C, group.ranges, lambda, singleton.weights) {
   # Compute the optimization objective
   obj <- 1/2 * MTComputeError(Y = Y, B = B, X = X,
                               task.specific.features = task.specific.features,
                               normalize = FALSE)
   obj <- obj + CalculateInnerGroupPenalty(C %*% t(B), group.ranges)
+  obj <- obj + sum(sweep(abs(B), 2, lambda * singleton.weights, FUN = "*"))
   return(obj)
 }
 
