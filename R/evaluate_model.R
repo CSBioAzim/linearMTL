@@ -246,7 +246,7 @@ EvaluateClusteredLinearMTModel <- function(X = NULL, task.specific.features = li
 
   # check for task specific features
   J2 <- 0
-  if (length(task.specific.features > 0)) {
+  if (length(task.specific.features) > 0) {
     if (nrow(task.specific.features[[1]]) != nrow(Y)) {
       stop("Task specific feature matrices and Y must have the same number of rows!")
     }

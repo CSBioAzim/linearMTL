@@ -108,7 +108,6 @@ TestLinearMTL <- function(method = "group") {
 
 
   # plot coefficients
-  print("should plot")
   scl <- seq(-0.3,0.5, by = 0.01)
   colreg <- grDevices::gray(1:(length(scl)+1)/(length(scl)+1))
   if ((method == "group") | (method == "all")) {
