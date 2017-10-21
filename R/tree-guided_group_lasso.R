@@ -95,7 +95,7 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
   singleton.weights[singleton.tasks] <- weights[singleton.groups]
 
   # retain inner nodes
-  groups <- groups[!singleton.groups, ]
+  groups <- groups[!singleton.groups, , drop = FALSE]
   weights <- weights[!singleton.groups]
   V <- nrow(groups) # number of inner nodes
 
