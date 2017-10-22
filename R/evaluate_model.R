@@ -158,24 +158,28 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
       dev.off ()
     }
 
-    print("Clustering coefficient matrix ... ")
-    if (!is.null(out.dir)) {
-      pdf(sprintf("%s/Model_clustering.pdf", out.dir))
-    }
+    if (sum(rowSums(B) == 0) == 0) {
+      print("Clustering coefficient matrix ... ")
+      if (!is.null(out.dir)) {
+        pdf(sprintf("%s/Model_clustering.pdf", out.dir))
+      }
 
-    # extract the selected features and overlay the dendrogram
-    coefficient.dendrogram <- as.dendrogram(hclust(as.dist(1 - cor(B, method = 'pearson'))))
-    regulators <- unique(unlist(candidate.regulators))
-    if (length(regulators) < 2) {
-      regulators.to.plot <- union(feature.names[1:2], regulators)
+      # extract the selected features and overlay the dendrogram
+      coefficient.dendrogram <- as.dendrogram(hclust(as.dist(1 - cor(B, method = 'pearson'))))
+      regulators <- unique(unlist(candidate.regulators))
+      if (length(regulators) < 2) {
+        regulators.to.plot <- union(feature.names[1:2], regulators)
+      } else {
+        regulators.to.plot <- regulators
+      }
+      PlotCustomHeatmap(matrix = as.matrix(B[regulators.to.plot,]),
+                        task.grouping = task.grouping,
+                        Colv = coefficient.dendrogram)
+      if (!is.null(out.dir)) {
+        dev.off ()
+      }
     } else {
-      regulators.to.plot <- regulators
-    }
-    PlotCustomHeatmap(matrix = as.matrix(B[regulators.to.plot,]),
-                      task.grouping = task.grouping,
-                      Colv = coefficient.dendrogram)
-    if (!is.null(out.dir)) {
-      dev.off ()
+      print("No clustering of coefficient matrix due to constant regression vectors.")
     }
 
     # write candidate regulators and their target regulation to tab separated file
