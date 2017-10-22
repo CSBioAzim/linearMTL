@@ -125,7 +125,7 @@ MTComputeMeanCorrelation <- function (Y, B, X = NULL, task.specific.features = l
       stop("Dimensions of pred and Y have to coincide!")
     }
   }
-  return(mean(diag(cor(pred, Y, method = method))))
+  return(mean(diag(cor(pred, Y, method = method)), na.rm = TRUE))
 }
 
 
