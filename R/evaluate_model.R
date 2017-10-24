@@ -158,7 +158,7 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
       dev.off ()
     }
 
-    if (sum(rowSums(B) == 0) == 0) {
+    if (sum(colSums(B == 0) == J) == 0) {
       print("Clustering coefficient matrix ... ")
       if (!is.null(out.dir)) {
         pdf(sprintf("%s/Model_clustering.pdf", out.dir))
