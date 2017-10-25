@@ -22,7 +22,7 @@
 #' @importFrom foreach foreach %dopar%
 #' @export
 RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
-                                   lambda.vec, num.folds = 10, num.threads = 1, ...) {
+                                   lambda.vec = NULL, num.folds = 10, num.threads = 1, ...) {
 
   # initialization and error checking
   if (is.null(X) & (length(task.specific.features) == 0)) {
@@ -51,7 +51,7 @@ RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
   N <- nrow(Y)
   J <- J1 + J2
 
-  RunParameter <- function (ind) {
+  RunTask <- function (ind) {
     # Run crossvalidation for given task.
     #
     # Args:
@@ -78,6 +78,7 @@ RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
         mat <- cbind(X, task.specific.features[[ind]])
       }
     }
+
     cv.results <- glmnet::cv.glmnet(x = mat, y = Y[, ind],
                                     lambda = lambda.vec, intercept = FALSE, ...)
 
@@ -100,7 +101,7 @@ RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
   err <- rep(0, K)
 
   doMC::registerDoMC(num.threads)
-  cv.results <- foreach(task = 1:K) %dopar% RunParameter(task)
+  cv.results <- foreach(task = 1:K) %dopar% RunTask(task)
   for (task in 1:K) {
     tbt.B[, task] <- cv.results[[task]]$B
     lambda[task] <- cv.results[[task]]$lambda
