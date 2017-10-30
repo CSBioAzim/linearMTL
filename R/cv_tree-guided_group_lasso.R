@@ -75,9 +75,19 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
   XTX.global <- list()
   XTY.global <- list()
   doMC::registerDoMC(num.threads)
-  mats <- foreach(i = seq_along(cv.folds)) %dopar% PrepareMatrices(Y = Y, X = X,
-                                                                            task.specific.features = task.specific.features,
-                                                                            idx = cv.folds[[i]])
+
+  PrepareMatricesForFold <- function(idx) {
+    ids <- cv.folds[[idx]]
+    # exclude indices for this fold
+    fold.ex.task.specific.features <- lapply(task.specific.features, function (x) {x[-ids, ]} )
+    # prepare matrices
+    pm.res <- PrepareMatrices(Y = Y[-ids, ], X = X[-ids, ],
+                              task.specific.features = fold.ex.task.specific.features,
+                              standardize = TRUE)
+    return(pm.res)
+  }
+
+  mats <- foreach(i = seq_along(cv.folds)) %dopar% PrepareMatricesForFold(i)
   for (i in seq_along(mats)) {
     XTX.global[[i]] <- mats[[i]]$XTX
     XTY.global[[i]] <- mats[[i]]$XTY

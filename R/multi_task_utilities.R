@@ -136,20 +136,21 @@ MTComputeMeanCorrelation <- function (Y, B, X = NULL, task.specific.features = l
 #' Computes XTX and XTY. If task specific features are supplied, the result will
 #' be a list containing the respective matrices for each task.
 #'
-#' @param Y Column centered N by K output matrix for every task.
-#' @param X Column-centered N by J1 matrix of features common to all tasks.
+#' @param Y N by K output matrix for every task.
+#' @param X N by J1 matrix of features common to all tasks.
 #' @param task.specific.features Named list of features which are specific to
-#'   each task. Each entry contains an N by J2 column-centered matrix for one
+#'   each task. Each entry contains an N by J2 matrix for one
 #'   particular task (where columns are features). List has to be ordered
 #'   according to the columns of Y.
-#' @param idx Vector of indices (data points) to exclude.
+#' @param standardize Standardize data (default is TRUE).
 #'
 #' @return List with XTX and XTY if no task specific features are supplied, or
 #'   list of lists otherwise.
 #'
 #' @seealso \code{\link{TreeGuidedGroupLasso}}, \code{\link{RunGroupCrossvalidation}}.
 #' @export
-PrepareMatrices <- function(Y, X = NULL, task.specific.features = list(), idx = NULL) {
+PrepareMatrices <- function(Y, X = NULL, task.specific.features = list(),
+                            standardize = TRUE) {
 
   if (is.null(X) & (length(task.specific.features) == 0)) {
     stop("No input data supplied.")
@@ -162,21 +163,30 @@ PrepareMatrices <- function(Y, X = NULL, task.specific.features = list(), idx = 
   J1 <- 0
   if (!is.null(X)) {
     J1 <- ncol(X)
+    if (standardize) {
+      # center and scale
+      X <- scale(X)
+    }
   }
   J2 <- 0
   if(length(task.specific.features) > 0) {
     J2 <- ncol(task.specific.features[[1]])
+    if (standardize) {
+      # center and scale
+      task.specific.features <- lapply(task.specific.features, scale)
+    }
   }
   J <- J1 + J2
 
-  if (is.null(idx)) {
-    idx <- -seq_len(N)
+  if (standardize) {
+    # center response
+    Y <- scale(Y, scale = FALSE)
   }
 
   if (J2 == 0) {
     # no task specific features
-    XTX <- t(X[-idx, ]) %*% X[-idx, ]
-    XTY <- t(X[-idx, ]) %*% Y[-idx, , drop = FALSE]
+    XTX <- t(X) %*% X
+    XTY <- t(X) %*% Y
   } else {
     # task specific features
     XTX <- list ()
@@ -187,9 +197,9 @@ PrepareMatrices <- function(Y, X = NULL, task.specific.features = list(), idx = 
       } else {
         mat <- task.specific.features[[k]]
       }
-      XTX[[k]] <- t(mat[-idx, ]) %*% mat[-idx, ]
-      XTY[, k] <- t(mat[-idx, ]) %*% Y[-idx, k]
+      XTX[[k]] <- t(mat) %*% mat
+      XTY[, k] <- t(mat) %*% Y[, k]
     }
   }
-  return (list(XTX = XTX, XTY = XTY))
+  return(list(XTX = XTX, XTY = XTY))
 }
