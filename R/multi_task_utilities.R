@@ -179,8 +179,8 @@ PrepareMatrices <- function(Y, X = NULL, task.specific.features = list(),
   J <- J1 + J2
 
   if (standardize) {
-    # center response
-    Y <- scale(Y, scale = FALSE)
+    # center and scale response
+    Y <- scale(Y)
   }
 
   if (J2 == 0) {
