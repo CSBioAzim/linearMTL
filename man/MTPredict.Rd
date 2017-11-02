@@ -4,10 +4,11 @@
 \alias{MTPredict}
 \title{Compute predictions for linear multi-task model.}
 \usage{
-MTPredict(B, X = NULL, task.specific.features = list())
+MTPredict(LMTL.model, X = NULL, task.specific.features = list())
 }
 \arguments{
-\item{B}{J by K matrix of regression coefficients, J = J1 + J2.}
+\item{LMTL.model}{Linear multi-task learning model (list containing B and
+intercept).}
 
 \item{X}{N by J1 matrix of features common to all tasks.}
 

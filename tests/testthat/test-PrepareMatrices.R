@@ -1,6 +1,6 @@
 context("Matrix precomputation with PrepareMatrices")
 
-test_that("MTPredict returns correct result for shared features only.", {
+test_that("PrepareMatrices returns correct result for shared features only.", {
   X <- rbind(c(1, 0, -14), c(12, 20, -5))
   Y <- cbind(c(10, -83), c(-9, -53))
 
@@ -9,7 +9,7 @@ test_that("MTPredict returns correct result for shared features only.", {
   expect_equal(mats$XTY, t(X) %*% Y)
 })
 
-test_that("MTPredict returns correct result for task specific features only.", {
+test_that("PrepareMatrices returns correct result for task specific features only.", {
   tsf <- list(rbind(c(5, 4, 6), c(3, 0, -10)), rbind(c(1, -7, 3), c(1, 5, 0)))
   Y <- cbind(c(10, -83), c(-9, -53))
 
@@ -20,7 +20,7 @@ test_that("MTPredict returns correct result for task specific features only.", {
   expect_equal(mats$XTY[, 2, drop = FALSE], t(tsf[[2]]) %*% Y[, 2])
 })
 
-test_that("MTPredict returns correct result for mixed features.", {
+test_that("PrepareMatrices returns correct result for mixed features.", {
   X <- rbind(c(1, 0, -14), c(12, 20, -5))
   tsf <- list(rbind(c(5, 4, 6), c(3, 0, -10)), rbind(c(1, -7, 3), c(1, 5, 0)))
   Y <- cbind(c(10, -83), c(-9, -53))
@@ -32,7 +32,7 @@ test_that("MTPredict returns correct result for mixed features.", {
   expect_equal(mats$XTY[, 2, drop = FALSE], t(cbind(X, tsf[[2]])) %*% Y[, 2])
 })
 
-test_that("MTPredict returns correct result for mixed features with standardization.", {
+test_that("PrepareMatrices returns correct result for mixed features with standardization.", {
   X <- rbind(c(1, 0, -14), c(12, 20, -5))
   tsf <- list(rbind(c(5, 4, 6), c(3, 0, -10)), rbind(c(1, -7, 3), c(1, 5, 0)))
   Y <- cbind(c(10, -83), c(-9, -53))
@@ -44,7 +44,7 @@ test_that("MTPredict returns correct result for mixed features with standardizat
   expect_equal(mats$XTY[, 2, drop = FALSE], t(scale(cbind(X, tsf[[2]]))) %*% scale(Y[, 2]))
 })
 
-test_that("MTPredict returns correct result for mixed features, single task.", {
+test_that("PrepareMatrices returns correct result for mixed features, single task.", {
   X <- rbind(c(1, 0, -14), c(12, 20, -5))
   tsf <- list(rbind(c(5, 4, 6), c(3, 0, -10)))
   Y <- as.matrix(c(10, -83))

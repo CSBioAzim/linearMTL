@@ -5,7 +5,7 @@
 \title{Evaluate clustered LinearMTL model.}
 \usage{
 EvaluateClusteredLinearMTModel(X = NULL, task.specific.features = list(), Y,
-  B.list, train.idx.by.cluster, test.idx.by.cluster)
+  LMTL.model.list, train.idx.by.cluster, test.idx.by.cluster)
 }
 \arguments{
 \item{X}{Column centered N by J input matrix of features common to all tasks.}
@@ -17,7 +17,7 @@ according to the columns of Y.}
 
 \item{Y}{Column centered N by K output matrix for every task.}
 
-\item{B.list}{List of J by K matrices of regression coefficients, J = J1 + J2.}
+\item{LMTL.model.list}{List of LinearMTL models.}
 
 \item{train.idx.by.cluster}{List of training indices per cluster.}
 

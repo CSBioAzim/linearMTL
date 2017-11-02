@@ -2,12 +2,12 @@
 #'
 #' Perform k-fold cross-validation for each task using \code{\link[glmnet]{cv.glmnet}}.
 #'
-#' @param X Column centered N by J input matrix of features common to all tasks.
+#' @param X N by J input matrix of features common to all tasks.
 #' @param task.specific.features List of features which are specific to
-#'   each task. Each entry contains an N by J2 column-centered matrix for one
+#'   each task. Each entry contains an N by J2 matrix for one
 #'   particular task (where columns are features). List has to be ordered
 #'   according to the columns of Y.
-#' @param Y Column centered N by K output matrix for every task.
+#' @param Y N by K output matrix for every task.
 #' @param lambda.vec Vector of regularization parameters.
 #' @param num.folds Number of folds.
 #' @param num.threads Number of threads to use.
@@ -15,14 +15,14 @@
 #'   \code{\link[glmnet]{cv.glmnet}}.
 #'
 #' @return List containing
-#'    \item{lambda}{Best lambda for each task.}
-#'    \item{B}{Final regression coefficients for the model fitted on the full data set.}
-#'    \item{error}{Cross-validation errors for each task.}
+#'     \item{cv.results}{data.frame with cross-validation errors for
+#'     different parameters.}
+#'     \item{full.model}{Full model trained on the whole data set.}
 #'
 #' @importFrom foreach foreach %dopar%
 #' @export
 RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
-                                   lambda.vec = NULL, num.folds = 10, num.threads = 1, ...) {
+                                   lambda.vec, num.folds = 10, num.threads = 1, ...) {
 
   # initialization and error checking
   if (is.null(X) & (length(task.specific.features) == 0)) {
@@ -58,8 +58,8 @@ RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
     #   ind: Task index.
     #
     # Returns:
-    #   List with best lambda, regression coefficients for the model
-    #   trained on the full data set and the cv error.
+    #   List with lambdas and cv errors and regression coefficients for the
+    #   best model trained on the full data set.
 
     print(sprintf('Crossvalidation for task: %d', ind))
 
@@ -79,34 +79,36 @@ RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
       }
     }
 
-    cv.results <- glmnet::cv.glmnet(x = mat, y = Y[, ind],
-                                    lambda = lambda.vec, intercept = FALSE, ...)
+    cv.results <- glmnet::cv.glmnet(x = mat, y = Y[, ind], lambda = lambda.vec, ...)
 
     task.end.time <- Sys.time()
     print(sprintf('Minutes to run cv for task %d: %0.1f',
                   ind, as.numeric(task.end.time-task.start.time, units = "mins")))
 
-
-    min.err <- which.min(cv.results$cvm)
-    error <- min(cv.results$cvm)
-    B <- cv.results$glmnet.fit$beta[, min.err]
-    lambda <- cv.results$lambda[min.err]
-    return(list(lambda = lambda, B = B, error = error))
+    cvm <- cv.results$cvm[order(cv.results$lambda)]
+    top.coef <- coef(cv.results, s = "lambda.min")
+    return(list(cvm = cv.results$cvm, lambda.min = cv.results$lambda.min,
+                B = top.coef[-1], intercept = top.coef[1]))
   }
 
-  tbt.B <- matrix(0, nrow = J, ncol = K)
-  # store best lambda for each task
-  lambda <- rep(0, K)
-  # store MSE for each task
-  err <- rep(0, K)
-
+  # run all tasks
   doMC::registerDoMC(num.threads)
-  cv.results <- foreach(task = 1:K) %dopar% RunTask(task)
-  for (task in 1:K) {
-    tbt.B[, task] <- cv.results[[task]]$B
-    lambda[task] <- cv.results[[task]]$lambda
-    err[task] <- cv.results[[task]]$error
-  }
+  all.cv.results <- foreach(task = 1:K) %dopar% RunTask(task)
 
-  return(list(lambda = lambda, B = tbt.B, error = err))
+  # extract full model
+  B <- matrix(0, nrow = J, ncol = K)
+  intercept <- rep(0, K)
+  lambda <- rep(0, K)
+  cv.results <- matrix(0, nrow = length(lambda.vec), ncol = K + 1)
+  cv.results[, 1] <- sort(lambda.vec)
+  for (task in 1:K) {
+    B[, task] <- all.cv.results[[task]]$B
+    intercept[task] <- all.cv.results[[task]]$intercept
+    lambda[task] <- all.cv.results[[task]]$lambda.min
+    cv.results[, task + 1] <- all.cv.results[[task]]$cvm
+  }
+  colnames(cv.results) <- c("lambda", paste("Task", 1:K, sep = ""))
+  full.model <- list(lambda = lambda, B = B, intercept = intercept)
+
+  return(list(cv.results = cv.results, full.model = full.model))
 }

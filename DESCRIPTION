@@ -1,7 +1,7 @@
 Package: LinearMTL
 Type: Package
 Title: Linear Models for Multi-Task Learning
-Version: 0.1.0
+Version: 0.2.0
 Author: Tobi Heinen
 URL: https://github.com/tohein/LinearMTL
 BugReports: https://github.com/tohein/LinearMTL/issues

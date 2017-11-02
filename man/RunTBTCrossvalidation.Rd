@@ -5,17 +5,17 @@
 \title{Cross-validation wrapper for task-by-task lasso model.}
 \usage{
 RunTBTCrossvalidation(X = NULL, task.specific.features = list(), Y,
-  lambda.vec = NULL, num.folds = 10, num.threads = 1, ...)
+  lambda.vec, num.folds = 10, num.threads = 1, ...)
 }
 \arguments{
-\item{X}{Column centered N by J input matrix of features common to all tasks.}
+\item{X}{N by J input matrix of features common to all tasks.}
 
 \item{task.specific.features}{List of features which are specific to
-each task. Each entry contains an N by J2 column-centered matrix for one
+each task. Each entry contains an N by J2 matrix for one
 particular task (where columns are features). List has to be ordered
 according to the columns of Y.}
 
-\item{Y}{Column centered N by K output matrix for every task.}
+\item{Y}{N by K output matrix for every task.}
 
 \item{lambda.vec}{Vector of regularization parameters.}
 
@@ -28,9 +28,9 @@ according to the columns of Y.}
 }
 \value{
 List containing
-   \item{lambda}{Best lambda for each task.}
-   \item{B}{Final regression coefficients for the model fitted on the full data set.}
-   \item{error}{Cross-validation errors for each task.}
+    \item{cv.results}{data.frame with cross-validation errors for
+    different parameters.}
+    \item{full.model}{Full model trained on the whole data set.}
 }
 \description{
 Perform k-fold cross-validation for each task using \code{\link[glmnet]{cv.glmnet}}.

@@ -16,7 +16,8 @@
 #'   particular task (where columns are features). List has to be ordered
 #'   according to the columns of Y.
 #' @param Y Column centered N by K output matrix for every task.
-#' @param B J by K matrix of regression coefficients, J = J1 + J2.
+#' @param LMTL.model Linear multi-task learning model (list containing B and
+#'   intercept).
 #' @param train.idx Indices for the training set.
 #' @param test.idx Indices for the test set.
 #' @param task.grouping String vector of length K with group names for each
@@ -35,7 +36,7 @@
 #'      of strings containing top regulators and their targets.}
 #'
 #' @export
-EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, B,
+EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, LMTL.model,
                                   train.idx, test.idx, task.grouping = NULL,
                                   feature.names = NULL, task.names = NULL,
                                   sd.threshold = 1.5, out.dir = NULL) {
@@ -68,12 +69,13 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
   K <- ncol(Y)
   J <- J1 + J2
 
-  if (nrow(B) != J) {
+  if (nrow(LMTL.model$B) != J) {
     stop("B must have as many rows as there are features in X and task.specific.features!")
   }
 
   # compute predictions
-  predictions <- MTPredict(B = B, X = X, task.specific.features = task.specific.features)
+  predictions <- MTPredict(LMTL.model = LMTL.model, X = X,
+                           task.specific.features = task.specific.features)
   train.pred <- predictions[train.idx, ]
   test.pred <- predictions[test.idx, ]
 
@@ -81,11 +83,11 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
   err.out <- matrix(0, nrow = 2, ncol = 2)
   dimnames(err.out) <- list(c("train", "test"), c("mse", "cor"))
 
-  err.out["train", "mse"] <- MTComputeError(Y = Y[train.idx, ], B = B, pred = train.pred)
-  err.out["train", "cor"] <- MTComputeMeanCorrelation(Y = Y[train.idx, ], B = B, pred = train.pred)
+  err.out["train", "mse"] <- MTComputeError(Y = Y[train.idx, ], pred = train.pred)
+  err.out["train", "cor"] <- MTComputeMeanCorrelation(Y = Y[train.idx, ], pred = train.pred)
 
-  err.out["test", "mse"] <- MTComputeError(Y = Y[test.idx, ], B = B, pred = test.pred)
-  err.out["test", "cor"] <- MTComputeMeanCorrelation(Y = Y[test.idx, ], B = B, pred = test.pred)
+  err.out["test", "mse"] <- MTComputeError(Y = Y[test.idx, ], pred = test.pred)
+  err.out["test", "cor"] <- MTComputeMeanCorrelation(Y = Y[test.idx, ], pred = test.pred)
 
   # print matrix
   print(err.out)
@@ -105,16 +107,16 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
   # compute error change for excluding common features
   if (J1 > 0) {
     for (j in 1:J1) {
-      feature.contribution <- MTPredict(B = B[j, , drop = FALSE], X = X[train.idx, j, drop = FALSE])
+      feature.contribution <- X[train.idx, j, drop = FALSE] %*% LMTL.model$B[j, , drop = FALSE] + LMTL.model$intercept
       error.change[j, ] <- colSums(((train.pred - feature.contribution) - Y[train.idx, ])^2 - squared.diff)
     }
   }
   # compute error change for excluding task specific features
   if (length(task.specific.features) > 0) {
     for (j in 1:J2) {
-      feat.task.specific.features <- lapply(task.specific.features, FUN = function(x){x[train.idx, j, drop = FALSE]})
-      feature.contribution <- MTPredict(B = B[J1 + j, , drop = FALSE],
-                                        task.specific.features = feat.task.specific.features)
+      feature.contribution <- sapply(1:K, FUN = function(x){
+        task.specific.features[[x]][train.idx, j, drop = FALSE] %*% LMTL.model$B[J1 + j, x, drop = FALSE] + LMTL.model$intercept[x]
+        })
       error.change[J1 + j, ] <- colSums(((train.pred - feature.contribution) - Y[train.idx, ])^2 - squared.diff)
     }
   }
@@ -122,7 +124,7 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
   error.change <- error.change / nrow(Y[train.idx,])
 
   if (!is.null(task.grouping)) {
-    dimnames(B) <- list(feature.names, task.names)
+    dimnames(LMTL.model$B) <- list(feature.names, task.names)
     names(task.grouping) <- task.names
 
     # find top regulators for each group and plot
@@ -143,8 +145,10 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
       candidates <- names(agg.errors)[agg.errors >= cutoff]
       candidate.regulators[[group]] <- candidates
       candidate.regulators$Common <- intersect(candidates, candidate.regulators$Common)
-      target.regulation[[group]] <- apply(X = B[,tasks.by.group[[group]], drop = FALSE],MARGIN = 1,
-                                          FUN = function (x) {ifelse (length (which (x > 0)) > length (which (x<0)), 'Up', 'Down') })[candidates]
+      target.regulation[[group]] <- apply(X = LMTL.model$B[,tasks.by.group[[group]], drop = FALSE], MARGIN = 1,
+                                          FUN = function (x) {
+                                            ifelse (length (which (x > 0)) > length (which (x<0)), 'Up', 'Down')
+                                            })[candidates]
       df <- data.frame(x = 1:length(agg.errors), y = sort(agg.errors), Cutoff = 'Below', stringsAsFactors = FALSE)
       df$Cutoff[df$y >= cutoff] <- 'Above'
       plot (0, 0, xlim = c(1, length(agg.errors)), ylim = range(agg.errors), type = 'n',
@@ -158,21 +162,21 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
       dev.off ()
     }
 
-    if (sum(colSums(B == 0) == J) == 0) {
+    if (sum(colSums(LMTL.model$B == 0) == J) == 0) {
       print("Clustering coefficient matrix ... ")
       if (!is.null(out.dir)) {
         pdf(sprintf("%s/Model_clustering.pdf", out.dir))
       }
 
       # extract the selected features and overlay the dendrogram
-      coefficient.dendrogram <- as.dendrogram(hclust(as.dist(1 - cor(B, method = 'pearson'))))
+      coefficient.dendrogram <- as.dendrogram(hclust(as.dist(1 - cor(LMTL.model$B, method = 'pearson'))))
       regulators <- unique(unlist(candidate.regulators))
       if (length(regulators) < 2) {
         regulators.to.plot <- union(feature.names[1:2], regulators)
       } else {
         regulators.to.plot <- regulators
       }
-      PlotCustomHeatmap(matrix = as.matrix(B[regulators.to.plot,]),
+      PlotCustomHeatmap(matrix = as.matrix(LMTL.model$B[regulators.to.plot,]),
                         task.grouping = task.grouping,
                         Colv = coefficient.dendrogram)
       if (!is.null(out.dir)) {
@@ -224,14 +228,14 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
 #'   particular task (where columns are features). List has to be ordered
 #'   according to the columns of Y.
 #' @param Y Column centered N by K output matrix for every task.
-#' @param B.list List of J by K matrices of regression coefficients, J = J1 + J2.
+#' @param LMTL.model.list List of LinearMTL models.
 #' @param train.idx.by.cluster List of training indices per cluster.
 #' @param test.idx.by.cluster List of test indices per cluster.
 #'
 #' @return Matrix containing training and test correlation and MSE.
 #'
 #' @export
-EvaluateClusteredLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, B.list,
+EvaluateClusteredLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, LMTL.model.list,
                                            train.idx.by.cluster, test.idx.by.cluster) {
 
   # initialization and error checking
@@ -263,16 +267,15 @@ EvaluateClusteredLinearMTModel <- function(X = NULL, task.specific.features = li
   J <- J1 + J2
 
   predictions <- matrix(0, N, K)
-  for (k in seq_along(B.list)) {
+  for (k in seq_along(LMTL.model.list)) {
     # compute predictions for every cluster
     train.idx <- train.idx.by.cluster[[k]]
     test.idx <- test.idx.by.cluster[[k]]
-    B <- B.list[[k]]
-
-    predictions[train.idx, ] <- MTPredict(B = B, X = X[train.idx, ],
+    LMTL.model <- LMTL.model.list[[k]]
+    predictions[train.idx, ] <- MTPredict(LMTL.model = LMTL.model, X = X[train.idx, ],
                                           task.specific.features = lapply(task.specific.features,
                                                                           FUN = function(x){x[train.idx, ]}))
-    predictions[test.idx, ] <- MTPredict(B = B, X = X[test.idx, ],
+    predictions[test.idx, ] <- MTPredict(LMTL.model = LMTL.model, X = X[test.idx, ],
                                          task.specific.features = lapply(task.specific.features,
                                                                          FUN = function(x){x[test.idx, ]}))
   }
@@ -289,11 +292,11 @@ EvaluateClusteredLinearMTModel <- function(X = NULL, task.specific.features = li
   err.out <- matrix(0, nrow = 2, ncol = 2)
   dimnames(err.out) <- list(c("train", "test"), c("mse", "cor"))
 
-  err.out["train", "mse"] <- MTComputeError(Y = Y[train.idx, ], B = B, pred = train.pred)
-  err.out["train", "cor"] <- MTComputeMeanCorrelation(Y = Y[train.idx, ], B = B, pred = train.pred)
+  err.out["train", "mse"] <- MTComputeError(Y = Y[train.idx, ], pred = train.pred)
+  err.out["train", "cor"] <- MTComputeMeanCorrelation(Y = Y[train.idx, ], pred = train.pred)
 
-  err.out["test", "mse"] <- MTComputeError(Y = Y[test.idx, ], B = B, pred = test.pred)
-  err.out["test", "cor"] <- MTComputeMeanCorrelation(Y = Y[test.idx, ], B = B, pred = test.pred)
+  err.out["test", "mse"] <- MTComputeError(Y = Y[test.idx, ], pred = test.pred)
+  err.out["test", "cor"] <- MTComputeMeanCorrelation(Y = Y[test.idx, ], pred = test.pred)
 
   # print / save
   print(err.out)

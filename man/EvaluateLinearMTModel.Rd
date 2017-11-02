@@ -4,9 +4,10 @@
 \alias{EvaluateLinearMTModel}
 \title{Evaluate LinearMTL model.}
 \usage{
-EvaluateLinearMTModel(X = NULL, task.specific.features = list(), Y, B,
-  train.idx, test.idx, task.grouping = NULL, feature.names = NULL,
-  task.names = NULL, sd.threshold = 1.5, out.dir = NULL)
+EvaluateLinearMTModel(X = NULL, task.specific.features = list(), Y,
+  LMTL.model, train.idx, test.idx, task.grouping = NULL,
+  feature.names = NULL, task.names = NULL, sd.threshold = 1.5,
+  out.dir = NULL)
 }
 \arguments{
 \item{X}{Column centered N by J input matrix of features common to all tasks.}
@@ -18,7 +19,8 @@ according to the columns of Y.}
 
 \item{Y}{Column centered N by K output matrix for every task.}
 
-\item{B}{J by K matrix of regression coefficients, J = J1 + J2.}
+\item{LMTL.model}{Linear multi-task learning model (list containing B and
+intercept).}
 
 \item{train.idx}{Indices for the training set.}
 

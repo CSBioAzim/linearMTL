@@ -293,7 +293,8 @@ CalculateInnerGroupPenalty <- function(A, group.ranges) {
 ComputeObjective <- function(Y, B, X = NULL, task.specific.features = list(),
                              C, group.ranges, lambda, singleton.weights) {
   # Compute the optimization objective
-  obj <- 1/2 * MTComputeError(Y = Y, B = B, X = X,
+  obj <- 1/2 * MTComputeError(LMTL.model = list(B = B, intercept = rep(0, ncol(B))),
+                              Y = Y, X = X,
                               task.specific.features = task.specific.features,
                               normalize = FALSE)
   obj <- obj + CalculateInnerGroupPenalty(C %*% t(B), group.ranges)

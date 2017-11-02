@@ -6,14 +6,17 @@ test_that("MTComputeMeanCorrelation can compute the mean correlation.", {
   B <- cbind(c(1,-4, 0, 5, -10, 4), c(2,-5, 0, 3, 4, 3))
   pred <- cbind(c(10, -93), c(-14, -53))
   Y <- cbind(c(10, -83), c(-9, -53))
-  expect_equal(MTComputeMeanCorrelation(Y = Y, B = B, X = X,
-                              task.specific.features = tsf), 1)
+  expect_equal(MTComputeMeanCorrelation(LMTL.model = list(B = B, intercept = rep(0, ncol(B))),
+                                        Y = Y, X = X,
+                                        task.specific.features = tsf),
+               1)
 })
 
 test_that("MTComputeMeanCorrelation can compute the mean correlation for pred.", {
   pred <- cbind(c(10, -93), c(-14, -53))
   Y <- cbind(c(10, -83), c(-9, -53))
-  expect_equal(MTComputeMeanCorrelation(Y = Y, pred = pred), 1)
+  expect_equal(MTComputeMeanCorrelation(Y = Y, pred = pred),
+               1)
 })
 
 test_that("MTComputeMeanCorrelation recognizes faulty dimensions.", {

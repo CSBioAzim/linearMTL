@@ -131,7 +131,7 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
                                           Y = Y[-fold,,drop = FALSE], groups = groups, weights = weights, lambda = lambda,
                                           XTX = XTX.global[[i]], XTY = XTY.global[[i]], ...)
       early.termination <- early.termination & fold.result$early.termination
-      error <- error + MTComputeError(Y = Y[fold, , drop = FALSE], B = fold.result$B,
+      error <- error + MTComputeError(LMTL.model = fold.result, Y = Y[fold, , drop = FALSE],
                                       X = X[fold, ], task.specific.features = fold.task.specific.features)
     }
 

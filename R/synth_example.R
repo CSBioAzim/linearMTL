@@ -48,7 +48,7 @@ TestLinearMTL <- function(method = "group") {
 
   if ((method == "group") | (method == "all")) {
     M <- BuildTreeHC(Ytrain, 0.6)
-    lambda.vec = 10^seq(-2,2, length.out = 15)
+    lambda.vec = c(0.1, 10, 15, 20)
     tggl <- RunGroupCrossvalidation(X = Xtrain,
                                     Y = Ytrain,
                                     groups = M$groups,
@@ -58,55 +58,54 @@ TestLinearMTL <- function(method = "group") {
                                     epsilon = 1e-4,
                                     mu = 0.001, mu.adapt = 0.99,
                                     verbose = 0)
-    group.B <- tggl$full.model$B
+    tggl.model <- tggl$full.model
     # tggl.stand <- TreeGuidedGroupLasso(X = Xtrain,
     #                              Y = Ytrain,
     #                              groups = M$groups,
     #                              weights = M$weights,
-    #                              lambda = 20,
+    #                              lambda = 15,
     #                              max.iter = 10000,
-    #                              epsilon = 1e-5,
+    #                              epsilon = 1e-4,
     #                              mu = 0.001, mu.adapt = 0.99,
     #                              verbose = 2)
-    # group.B <- tggl.stand$B
+    # tggl.model <- tggl.stand
   }
   if ((method == "tbt") | (method == "all")) {
-    lambda.vec = 10^seq(-5,2, length.out = 20)
+    lambda.vec = 10^seq(-5, 2, length.out = 20)
     tbt <- RunTBTCrossvalidation(X = Xtrain,
                                  Y = Ytrain,
                                  lambda.vec = lambda.vec)
-    sbs.B <- tbt$B
+    tbt.model <- tbt$full.model
   }
 
   # evaluate
-
   # compute test error and test correlation
   if ((method == "group") | (method == "all")) {
-    group.test.pred <- MTPredict(B = group.B, X = Xtest)
-    group.err <- MTComputeError(Y = Ytest, B = group.B, X = Xtest)
-    group.cor <- MTComputeMeanCorrelation(Y = Ytest, B = group.B, X = Xtest)
+    group.test.pred <- MTPredict(LMTL.model = tggl.model, X = Xtest)
+    group.err <- MTComputeError(LMTL.model = tggl.model, Y = Ytest, X = Xtest)
+    group.cor <- MTComputeMeanCorrelation(LMTL.model = tggl.model, Y = Ytest, X = Xtest)
     print(sprintf("GROUP  - test mse: %f, test cor: %f", group.err, group.cor))
   }
   if ((method == "tbt") | (method == "all")) {
-    sbs.test.pred <- MTPredict(B = sbs.B, X = Xtest)
-    sbs.err <- MTComputeError(Y = Ytest, B = sbs.B, X = Xtest)
-    sbs.cor <- MTComputeMeanCorrelation(Y = Ytest, B = sbs.B, X = Xtest)
+    sbs.test.pred <- MTPredict(LMTL.model = tbt.model, X = Xtest)
+    sbs.err <- MTComputeError(LMTL.model = tbt.model, Y = Ytest, X = Xtest)
+    sbs.cor <- MTComputeMeanCorrelation(LMTL.model = tbt.model, Y = Ytest, X = Xtest)
     print(sprintf("SBS    - test mse: %f, test cor: %f", sbs.err, sbs.cor))
   }
-  opt.pred <- MTPredict(B = B.truth, X = Xtest)
-  opt.err <- MTComputeError(Y = Ytest, B = B.truth, X = Xtest)
-  opt.cor <- MTComputeMeanCorrelation(Y = Ytest, B = B.truth, X = Xtest)
+  opt.model <- list(B = B.truth, intercept = rep(0, ncol(B.truth)))
+  opt.pred <- MTPredict(LMTL.model = opt.model, X = Xtest)
+  opt.err <- MTComputeError(LMTL.model = opt.model, Y = Ytest, X = Xtest)
+  opt.cor <- MTComputeMeanCorrelation(LMTL.model = opt.model, Y = Ytest, X = Xtest)
   print(sprintf("OPT    - test mse: %f, test cor: %f", opt.err, opt.cor))
-
 
   # plot coefficients
   scl <- seq(-0.3,0.5, by = 0.01)
   colreg <- grDevices::gray(1:(length(scl)+1)/(length(scl)+1))
   if ((method == "group") | (method == "all")) {
-    print(lattice::levelplot(group.B, at = scl, col.regions = colreg))
+    print(lattice::levelplot(tggl.model$B, at = scl, col.regions = colreg))
   }
   if ((method == "tbt") | (method == "all")) {
-    print(lattice::levelplot(sbs.B, at = scl, col.regions = colreg))
+    print(lattice::levelplot(tbt.model$B, at = scl, col.regions = colreg))
   }
   print(lattice::levelplot(B.truth, at = scl, col.regions = colreg))
 

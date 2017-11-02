@@ -7,7 +7,8 @@
 #' Compute linear predictions from predictor variables and regression
 #' coefficients.
 #'
-#' @param B J by K matrix of regression coefficients, J = J1 + J2.
+#' @param LMTL.model Linear multi-task learning model (list containing B and
+#'   intercept).
 #' @param X N by J1 matrix of features common to all tasks.
 #' @param task.specific.features Named list of features which are specific to
 #'   each task. Each entry contains an N by J2 column-centered matrix for one
@@ -17,9 +18,12 @@
 #' @return N by J predictions matrix.
 #'
 #' @export
-MTPredict <- function(B, X = NULL, task.specific.features = list()) {
+MTPredict <- function(LMTL.model, X = NULL, task.specific.features = list()) {
 
-  K <- ncol(B)
+  if (length(intersect(names(LMTL.model), c("B", "intercept"))) < 2) {
+    stop("No valid model supplied.")
+  }
+  K <- ncol(LMTL.model$B)
 
   if (is.null(X) & (length(task.specific.features) == 0)) {
     stop("No input data supplied.")
@@ -41,51 +45,58 @@ MTPredict <- function(B, X = NULL, task.specific.features = list()) {
   }
 
   J <- J1 + J2
-  if (nrow(B) != J) {
+  if (nrow(LMTL.model$B) != J) {
     stop("Incorrect number of dimensions: B must have one row per feature!")
   }
 
   # compute predictions for shared feature matrix
   if (J1 > 0) {
-    prediction <- X %*% B[1:J1, ]
+    prediction <- X %*% LMTL.model$B[1:J1, ]
   } else {
     # we must have task specific features
     C <- task.specific.features[[1]]
-    prediction <- matrix(0, nrow = nrow(C), ncol = ncol(B))
+    prediction <- matrix(0, nrow = nrow(C), ncol = K)
   }
 
   # compute predictions for task specific feature matrices
   if (J2 > 0) {
     # rows J1 + 1 and below of B correspond to task specific features
-    tsf.idx <- (J1 + 1):nrow(B)
+    tsf.idx <- (J1 + 1):J
     for (k in 1:K) {
       C <- task.specific.features[[k]]
-      prediction[, k] <- prediction[, k] + C %*% B[tsf.idx, k]
+      prediction[, k] <- prediction[, k] + C %*% LMTL.model$B[tsf.idx, k]
     }
   }
+
+  # add intercepts
+  prediction <- sweep(prediction, 2, FUN = "+", LMTL.model$intercept)
   return(prediction)
 }
 
 #' Compute (mean) squared error for linear multi-task model.
 #'
+#' @param LMTL.model Linear multi-task learning model (list containing B and
+#'   intercept).
 #' @param Y Column centered N by K output matrix for every task.
-#' @param B J by K matrix of regression coefficients, J = J1 + J2.
 #' @param X N by J1 matrix of features common to all tasks.
 #' @param task.specific.features Named list of features which are specific to
 #'   each task. Each entry contains an N by J2 column-centered matrix for one
 #'   particular task (where columns are features). List has to be ordered
 #'   according to the columns of Y.
-#' @param pred Predicted output matrix. If NULL, compute predictions using input features.
+#' @param pred Predicted output matrix. If NULL, compute predictions using input
+#'   features.
 #' @param normalize Compute mean (TRUE) or sum (FALSE).
 #'
 #' @return The (mean) squared error between predictions for each task and Y.
 #'
 #' @export
-MTComputeError <- function (Y, B, X = NULL, task.specific.features = list(),
+MTComputeError <- function (LMTL.model, Y, X = NULL,
+                            task.specific.features = list(),
                             pred = NULL, normalize = TRUE) {
 
   if (is.null(pred)) {
-    pred <- MTPredict(B = B, X = X, task.specific.features = task.specific.features)
+    pred <- MTPredict(LMTL.model = LMTL.model, X = X,
+                      task.specific.features = task.specific.features)
   } else {
     if (!isTRUE(all.equal(dim(pred), dim(Y)))) {
       stop("Dimensions of pred and Y have to coincide!")
@@ -101,25 +112,29 @@ MTComputeError <- function (Y, B, X = NULL, task.specific.features = list(),
 
 #' Compute (mean) correlation for linear multi-task model.
 #'
+#' @param LMTL.model Linear multi-task learning model (list containing B and
+#'   intercept).
 #' @param Y Column centered N by K output matrix for every task.
-#' @param B J by K matrix of regression coefficients, J = J1 + J2.
 #' @param X N by J1 matrix of features common to all tasks.
 #' @param task.specific.features Named list of features which are specific to
 #'   each task. Each entry contains an N by J2 column-centered matrix for one
 #'   particular task (where columns are features). List has to be ordered
 #'   according to the columns of Y.
-#' @param pred Predicted output matrix. If NULL, compute predictions using input features.
+#' @param pred Predicted output matrix. If NULL, compute predictions using input
+#'   features.
 #' @param method Correlation method to use.
 #'
 #' @return The mean correlation between predictions for each task and Y.
 #'
 #' @importFrom stats cor
 #' @export
-MTComputeMeanCorrelation <- function (Y, B, X = NULL, task.specific.features = list(),
+MTComputeMeanCorrelation <- function (LMTL.model, Y, X = NULL,
+                                      task.specific.features = list(),
                                       pred = NULL, method = "spearman") {
 
   if (is.null(pred)) {
-    pred <- MTPredict(B = B, X = X, task.specific.features = task.specific.features)
+    pred <- MTPredict(LMTL.model = LMTL.model, X = X,
+                      task.specific.features = task.specific.features)
   } else {
     if (!isTRUE(all.equal(dim(pred), dim(Y)))) {
       stop("Dimensions of pred and Y have to coincide!")

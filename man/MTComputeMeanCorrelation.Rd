@@ -4,13 +4,14 @@
 \alias{MTComputeMeanCorrelation}
 \title{Compute (mean) correlation for linear multi-task model.}
 \usage{
-MTComputeMeanCorrelation(Y, B, X = NULL, task.specific.features = list(),
-  pred = NULL, method = "spearman")
+MTComputeMeanCorrelation(LMTL.model, Y, X = NULL,
+  task.specific.features = list(), pred = NULL, method = "spearman")
 }
 \arguments{
-\item{Y}{Column centered N by K output matrix for every task.}
+\item{LMTL.model}{Linear multi-task learning model (list containing B and
+intercept).}
 
-\item{B}{J by K matrix of regression coefficients, J = J1 + J2.}
+\item{Y}{Column centered N by K output matrix for every task.}
 
 \item{X}{N by J1 matrix of features common to all tasks.}
 
@@ -19,7 +20,8 @@ each task. Each entry contains an N by J2 column-centered matrix for one
 particular task (where columns are features). List has to be ordered
 according to the columns of Y.}
 
-\item{pred}{Predicted output matrix. If NULL, compute predictions using input features.}
+\item{pred}{Predicted output matrix. If NULL, compute predictions using input
+features.}
 
 \item{method}{Correlation method to use.}
 }
