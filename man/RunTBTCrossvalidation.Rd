@@ -5,7 +5,7 @@
 \title{Cross-validation wrapper for task-by-task lasso model.}
 \usage{
 RunTBTCrossvalidation(X = NULL, task.specific.features = list(), Y,
-  lambda.vec, num.folds = 10, num.threads = 1, ...)
+  lambda.vec = NULL, num.folds = 10, num.threads = 1, ...)
 }
 \arguments{
 \item{X}{Column centered N by J input matrix of features common to all tasks.}

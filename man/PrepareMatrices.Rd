@@ -4,19 +4,20 @@
 \alias{PrepareMatrices}
 \title{Precompute matrices XTX and XTY for \code{\link{TreeGuidedGroupLasso}}.}
 \usage{
-PrepareMatrices(Y, X = NULL, task.specific.features = list(), idx = NULL)
+PrepareMatrices(Y, X = NULL, task.specific.features = list(),
+  standardize = TRUE)
 }
 \arguments{
-\item{Y}{Column centered N by K output matrix for every task.}
+\item{Y}{N by K output matrix for every task.}
 
-\item{X}{Column-centered N by J1 matrix of features common to all tasks.}
+\item{X}{N by J1 matrix of features common to all tasks.}
 
 \item{task.specific.features}{Named list of features which are specific to
-each task. Each entry contains an N by J2 column-centered matrix for one
+each task. Each entry contains an N by J2 matrix for one
 particular task (where columns are features). List has to be ordered
 according to the columns of Y.}
 
-\item{idx}{Vector of indices (data points) to exclude.}
+\item{standardize}{Standardize data (default is TRUE).}
 }
 \value{
 List with XTX and XTY if no task specific features are supplied, or

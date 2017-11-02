@@ -6,7 +6,8 @@
 \usage{
 TreeGuidedGroupLasso(X = NULL, task.specific.features = list(), Y, groups,
   weights, lambda, max.iter = 10000, epsilon = 1e-05, mu = NULL,
-  mu.adapt = 1, XTX = NULL, XTY = NULL, init.B = NULL, verbose = 1)
+  mu.adapt = 1, XTX = NULL, XTY = NULL, init.B = NULL, verbose = 1,
+  standardize = TRUE)
 }
 \arguments{
 \item{X}{Column-centered N by J1 matrix of features common to all tasks.}
@@ -47,6 +48,8 @@ coefficients.}
 \item{verbose}{Integer in {0,1,2}. verbose = 0: No output. verbose = 1: Print
 summary at the end of the optimization. verbose = 2: Print progress during
 optimization.}
+
+\item{standardize}{Standardize data (default is TRUE).}
 }
 \value{
 List containing
