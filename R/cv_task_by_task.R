@@ -87,7 +87,7 @@ RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
 
     cvm <- cv.results$cvm[order(cv.results$lambda)]
     top.coef <- coef(cv.results, s = "lambda.min")
-    return(list(cvm = cv.results$cvm, lambda.min = cv.results$lambda.min,
+    return(list(cvm = cvm, lambda.min = cv.results$lambda.min,
                 B = top.coef[-1], intercept = top.coef[1]))
   }
 
