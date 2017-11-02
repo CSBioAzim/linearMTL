@@ -46,19 +46,11 @@ TestLinearMTL <- function(method = "group") {
   Ytrain <- Xtrain %*% B.truth + matrix(rnorm(N * K), nrow = N)
   Ytest <- Xtest %*% B.truth + matrix(rnorm(N * K), nrow = N)
 
-  # generated centered versions
-  center.X <- colMeans(Xtrain)
-  Xtrain.centered <- sweep(Xtrain, 2, center.X, check.margin = TRUE)
-  Xtest.centered <- sweep(Xtest, 2, center.X, check.margin = TRUE)
-  center.Y <- colMeans(Ytrain)
-  Ytrain.centered <- sweep(Ytrain, 2, center.Y, check.margin = TRUE)
-  Ytest.centered <- sweep(Ytest, 2, center.Y, check.margin = TRUE)
-
   if ((method == "group") | (method == "all")) {
     M <- BuildTreeHC(Ytrain, 0.6)
     lambda.vec = 10^seq(-2,2, length.out = 15)
-    tggl <- RunGroupCrossvalidation(X = Xtrain.centered,
-                                    Y = Ytrain.centered,
+    tggl <- RunGroupCrossvalidation(X = Xtrain,
+                                    Y = Ytrain,
                                     groups = M$groups,
                                     weights.matrix = matrix(M$weights, nrow = 1),
                                     lambda.vec = lambda.vec,
@@ -67,8 +59,8 @@ TestLinearMTL <- function(method = "group") {
                                     mu = 0.001, mu.adapt = 0.99,
                                     verbose = 0)
     group.B <- tggl$full.model$B
-    # tggl <- TreeGuidedGroupLasso(X = Xtrain.centered,
-    #                              Y = Ytrain.centered,
+    # tggl.stand <- TreeGuidedGroupLasso(X = Xtrain,
+    #                              Y = Ytrain,
     #                              groups = M$groups,
     #                              weights = M$weights,
     #                              lambda = 20,
@@ -76,12 +68,12 @@ TestLinearMTL <- function(method = "group") {
     #                              epsilon = 1e-5,
     #                              mu = 0.001, mu.adapt = 0.99,
     #                              verbose = 2)
-    # group.B <- tggl$B
+    # group.B <- tggl.stand$B
   }
   if ((method == "tbt") | (method == "all")) {
     lambda.vec = 10^seq(-5,2, length.out = 20)
-    tbt <- RunTBTCrossvalidation(X = Xtrain.centered,
-                                 Y = Ytrain.centered,
+    tbt <- RunTBTCrossvalidation(X = Xtrain,
+                                 Y = Ytrain,
                                  lambda.vec = lambda.vec)
     sbs.B <- tbt$B
   }
