@@ -4,12 +4,12 @@
 #' (Kim et al. 2012). May be trained on shared or task specific feature
 #' matrices.
 #'
-#' @param X Column-centered N by J1 matrix of features common to all tasks.
+#' @param X N by J1 matrix of features common to all tasks.
 #' @param task.specific.features List of features which are specific to
-#'   each task. Each entry contains an N by J2 column-centered matrix for one
+#'   each task. Each entry contains an N by J2 matrix for one
 #'   particular task (where columns are features). List has to be ordered
 #'   according to the columns of Y.
-#' @param Y Column centered N by K output matrix for every task.
+#' @param Y N by K output matrix for every task.
 #' @param groups V by K matrix determining group membership: Task k in group v
 #'   iff groups[v,k] == 1.
 #' @param weights V dimensional vector with group weights.
@@ -29,11 +29,13 @@
 #' @param verbose Integer in {0,1,2}. verbose = 0: No output. verbose = 1: Print
 #'   summary at the end of the optimization. verbose = 2: Print progress during
 #'   optimization.
+#' @param standardize Standardize data (default is TRUE).
 #'
 #' @return List containing
 #'   \item{lambda}{Regularization parameter used.}
 #'   \item{weights}{Node weights used.}
 #'   \item{B}{Final estimate of the regression coefficients.}
+#'   \item{intercept}{Final estimate of the intercept terms.}
 #'   \item{obj}{Final objective value.}
 #'   \item{early.termination}{Boolean indicating whether the algorithm exceeded
 #'   max.iter iterations.}
@@ -42,7 +44,8 @@
 #' @export
 TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
                                   groups, weights, lambda, max.iter = 10000, epsilon = 1e-5,
-                                  mu = NULL, mu.adapt = 1, XTX = NULL, XTY = NULL, init.B = NULL, verbose = 1) {
+                                  mu = NULL, mu.adapt = 1, XTX = NULL, XTY = NULL, init.B = NULL,
+                                  verbose = 1, standardize = TRUE) {
 
   # initialization and error checking
   if (is.null(X) & (length(task.specific.features) == 0)) {
@@ -99,12 +102,40 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
   weights <- weights[!singleton.groups]
   V <- nrow(groups) # number of inner nodes
 
+  # standardize data:
+  # remember means and standard deviations so that
+  # coefficients on original scale can be recovered
+  X.sds <- NULL
+  X.mus <- NULL
+  tsf.sds <- list()
+  tsf.mus <- list()
+  Y.sds <- NULL
+  Y.mus <- NULL
+  if (standardize) {
+    if (J1 > 0) {
+      X.sds <- apply(X, 2, sd)
+      X.mus <- apply(X, 2, mean)
+      X <- scale(X)
+    }
+    if (J2 > 0) {
+      tsf.sds <- lapply(task.specific.features, FUN = function(A){apply(A, 2, sd)})
+      tsf.mus <- lapply(task.specific.features, FUN = function(A){apply(A, 2, mean)})
+      task.specific.features <- lapply(task.specific.features, scale)
+    }
+    Y.mus <- apply(Y, 2, mean)
+    Y.sds <- apply(Y, 2, sd)
+    Y <- scale(Y)
+  }
+
   # precompute matrices if necessary
   if (!use.cached.immutables) {
-    mats <- PrepareMatrices(Y = Y, X = X, task.specific.features = task.specific.features)
+    # variables are already scaled (if standardize=TRUE), do not standardize again
+    mats <- PrepareMatrices(Y = Y, X = X, task.specific.features = task.specific.features,
+                            standardize = FALSE)
     XTX <- mats$XTX
     XTY <- mats$XTY
   }
+
 
   # build C
   group.sizes <- rowSums(groups)
@@ -214,7 +245,22 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
   if (early.termination) {
     print(sprintf("Warning: Reached maximum number of iterations (%d).", max.iter))
   }
-  return(list(lambda = lambda, weights = weights, B = B, obj = obj, early.termination = early.termination))
+
+  intercept <- rep(0, K)
+  # recover coefficients on original scale and compute intercept
+  if (standardize) {
+    B.transformed <- ComputeInverseArtesi(B,
+                                          Y.sds = Y.sds, Y.mus = Y.mus,
+                                          X.sds = X.sds, X.mus = X.mus,
+                                          tsf.sds = tsf.sds, tsf.mus = tsf.mus)
+    B <- B.transformed[2:nrow(B.transformed), ]
+    intercept <- B.transformed[1, ]
+  }
+
+  # TODO compute intercept for standardize = FALSE
+
+  return(list(lambda = lambda, weights = weights, B = B, intercept = intercept,
+              obj = obj, early.termination = early.termination))
 }
 
 Shrink <- function(A, group.ranges) {
@@ -255,7 +301,28 @@ ComputeObjective <- function(Y, B, X = NULL, task.specific.features = list(),
   return(obj)
 }
 
+ComputeInverseArtesi <- function(B, Y.sds, Y.mus, X.sds, X.mus, tsf.sds, tsf.mus) {
+  # Compute inverse artesi transformation to obtain coefficients for
+  # variables on the original scale
+  B.transformed <- matrix(0, nrow = nrow(B) + 1, ncol = ncol(B))
+  K <- ncol(B)
 
+  if (is.null(Y.sds)) {
+    Y.sds <- rep(1, length(Y.sds))
+  }
+
+  for (k in 1:K) {
+    input.sds <- X.sds
+    input.mus <- X.mus
+    if (length(tsf.sds) > 0) {
+      input.sds <- c(input.sds, tsf.sds[[k]])
+      input.mus <- c(input.mus, tsf.mus[[k]])
+    }
+    B.transformed[2:nrow(B.transformed), k] <- Y.sds[k] * B[, k] / input.sds
+    B.transformed[1, k] <-  - Y.sds[k] * sum(B[, k] * input.mus / input.sds) + Y.mus[k]
+  }
+  return(B.transformed)
+}
 
 
 #' Construct tree for \code{\link{TreeGuidedGroupLasso}} using hierarchical
