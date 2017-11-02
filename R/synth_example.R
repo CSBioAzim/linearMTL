@@ -82,20 +82,20 @@ TestLinearMTL <- function(method = "group") {
 
   # compute test error and test correlation
   if ((method == "group") | (method == "all")) {
-    group.test.pred <- MTPredict(B = group.B, X = Xtest.centered)
-    group.err <- MTComputeError(Y = Ytest.centered, B = group.B, X = Xtest.centered)
-    group.cor <- MTComputeMeanCorrelation(Y = Ytest.centered, B = group.B, X = Xtest.centered)
+    group.test.pred <- MTPredict(B = group.B, X = Xtest)
+    group.err <- MTComputeError(Y = Ytest, B = group.B, X = Xtest)
+    group.cor <- MTComputeMeanCorrelation(Y = Ytest, B = group.B, X = Xtest)
     print(sprintf("GROUP  - test mse: %f, test cor: %f", group.err, group.cor))
   }
   if ((method == "tbt") | (method == "all")) {
-    sbs.test.pred <- MTPredict(B = sbs.B, X = Xtest.centered)
-    sbs.err <- MTComputeError(Y = Ytest.centered, B = sbs.B, X = Xtest.centered)
-    sbs.cor <- MTComputeMeanCorrelation(Y = Ytest.centered, B = sbs.B, X = Xtest.centered)
+    sbs.test.pred <- MTPredict(B = sbs.B, X = Xtest)
+    sbs.err <- MTComputeError(Y = Ytest, B = sbs.B, X = Xtest)
+    sbs.cor <- MTComputeMeanCorrelation(Y = Ytest, B = sbs.B, X = Xtest)
     print(sprintf("SBS    - test mse: %f, test cor: %f", sbs.err, sbs.cor))
   }
-  opt.pred <- MTPredict(B = B.truth, X = Xtest.centered)
-  opt.err <- MTComputeError(Y = Ytest.centered, B = B.truth, X = Xtest.centered)
-  opt.cor <- MTComputeMeanCorrelation(Y = Ytest.centered, B = B.truth, X = Xtest.centered)
+  opt.pred <- MTPredict(B = B.truth, X = Xtest)
+  opt.err <- MTComputeError(Y = Ytest, B = B.truth, X = Xtest)
+  opt.cor <- MTComputeMeanCorrelation(Y = Ytest, B = B.truth, X = Xtest)
   print(sprintf("OPT    - test mse: %f, test cor: %f", opt.err, opt.cor))
 
 
@@ -112,8 +112,8 @@ TestLinearMTL <- function(method = "group") {
 
   # plot error
   if (method == "all") {
-    plot(colSums((sbs.test.pred - Ytest.centered)^2) / N, col = "red", type = "p")
-    lines(colSums((group.test.pred - Ytest.centered)^2) / N, type = "p", col = "blue")
-    lines(colSums((Xtest.centered %*% B.truth - Ytest.centered)^2) / N, type = "p", col = "black")
+    plot(colSums((sbs.test.pred - Ytest)^2) / N, col = "red", type = "p")
+    lines(colSums((group.test.pred - Ytest)^2) / N, type = "p", col = "blue")
+    lines(colSums((Xtest %*% B.truth - Ytest)^2) / N, type = "p", col = "black")
   }
 }
