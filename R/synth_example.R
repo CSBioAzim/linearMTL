@@ -48,15 +48,14 @@ TestLinearMTL <- function(method = "group") {
 
   if ((method == "group") | (method == "all")) {
     M <- BuildTreeHC(Ytrain, 0.6)
-    lambda.vec = c(0.1, 10, 15, 20)
+    lambda.vec = 10^seq(-3, 2, length.out = 6)
     tggl <- RunGroupCrossvalidation(X = Xtrain,
                                     Y = Ytrain,
                                     groups = M$groups,
                                     weights.matrix = matrix(M$weights, nrow = 1),
                                     lambda.vec = lambda.vec,
-                                    max.iter = 10000,
                                     epsilon = 1e-4,
-                                    mu = 0.001, mu.adapt = 0.99,
+                                    mu = 1e-5, mu.adapt = 0.99,
                                     verbose = 0)
     tggl.model <- tggl$full.model
   }
