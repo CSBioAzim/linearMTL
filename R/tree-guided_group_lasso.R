@@ -161,13 +161,13 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
 
   # compute Lipschitz constant
   C.norm.squared <- t(tcrossprod(rep(1, K), weights)) * groups;
-  C.norm.squared <- max(colSums(C.norm.squared^2));
+  C.norm.squared <- lambda^2 * max(colSums(C.norm.squared^2));
   if (length(task.specific.features) > 0) {
     # expensive
     #L1 <- max(unlist(lapply(XTX, FUN = function(M) {max(eigen(M)$values)})))
-    L1 <- max(eigen(XTX[[1]])$values)
+    L1 <- max(eigen(XTX[[1]])$values) / N
   } else {
-    L1 <- max(eigen(XTX)$values)
+    L1 <- max(eigen(XTX)$values) / N
   }
 
   # Lipschitz constant
@@ -196,12 +196,12 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
     if (length(task.specific.features) > 0) {
       # task specific features
       for (k in 1:K) {
-        dh[, k] <- XTX[[k]] %*% W[, k] - XTY[, k]
+        dh[, k] <- 1/N * (XTX[[k]] %*% W[, k] - XTY[, k])
       }
       dh <- dh + df
     } else {
       # no task specific features
-      dh <- XTX %*% W - XTY + df
+      dh <- 1/N * (XTX %*% W - XTY) + df
     }
     V <- W - 1/L * dh
     B.new  <- sign(V) * pmax(0, sweep(abs(V), 2, lambda/L * singleton.weights))
@@ -210,7 +210,7 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
 
     # compute delta
     delta <- sqrt(sum((B.new - B)^2)) / max(sqrt(sum(B.new^2)), 1)
-    if ((iter %% 100) == 0) {
+    if (((iter %% 100) == 0) & (iter > 0)) {
       # compute new objective
       obj <- ComputeObjective(Y = Y, B = B.new, X = X,
                               task.specific.features = task.specific.features,
@@ -293,10 +293,11 @@ CalculateInnerGroupPenalty <- function(A, group.ranges) {
 ComputeObjective <- function(Y, B, X = NULL, task.specific.features = list(),
                              C, group.ranges, lambda, singleton.weights) {
   # Compute the optimization objective
-  obj <- 1/2 * MTComputeError(LMTL.model = list(B = B, intercept = rep(0, ncol(B))),
-                              Y = Y, X = X,
-                              task.specific.features = task.specific.features,
-                              normalize = FALSE)
+  N <- nrow(Y)
+  obj <- 1/(2*N) * MTComputeError(LMTL.model = list(B = B, intercept = rep(0, ncol(B))),
+                                  Y = Y, X = X,
+                                  task.specific.features = task.specific.features,
+                                  normalize = FALSE)
   obj <- obj + CalculateInnerGroupPenalty(C %*% t(B), group.ranges)
   obj <- obj + sum(sweep(abs(B), 2, lambda * singleton.weights, FUN = "*"))
   return(obj)
