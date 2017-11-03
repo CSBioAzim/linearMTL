@@ -51,6 +51,8 @@ RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
   N <- nrow(Y)
   J <- J1 + J2
 
+  lambda.vec <- sort(lambda.vec)
+
   RunTask <- function (ind) {
     # Run crossvalidation for given task.
     #
@@ -85,7 +87,13 @@ RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
     print(sprintf('Minutes to run cv for task %d: %0.1f',
                   ind, as.numeric(task.end.time-task.start.time, units = "mins")))
 
-    cvm <- cv.results$cvm[order(cv.results$lambda)]
+    # find lambda entries corresponding to lambda.vec
+    # (glmnet sometimes drops lambdas from the given sequence)
+    cvm <- rep(NA, length(lambda.vec))
+    lambda.dist <- outer(lambda.vec, cv.results$lambda, FUN = function(x, y) abs(x - y))
+    matches <- which(lambda.dist < 1e-10, arr.ind = TRUE)
+    cvm[matches[, 1]] <- cv.results$cvm[matches[, 2]]
+
     top.coef <- coef(cv.results, s = "lambda.min")
     return(list(cvm = cvm, lambda.min = cv.results$lambda.min,
                 B = top.coef[-1], intercept = top.coef[1]))
@@ -99,7 +107,7 @@ RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
   B <- matrix(0, nrow = J, ncol = K)
   intercept <- rep(0, K)
   lambda <- rep(0, K)
-  cv.results <- matrix(0, nrow = length(lambda.vec), ncol = K + 1)
+  cv.results <- matrix(NA, nrow = length(lambda.vec), ncol = K + 1)
   cv.results[, 1] <- sort(lambda.vec)
   for (task in 1:K) {
     B[, task] <- all.cv.results[[task]]$B

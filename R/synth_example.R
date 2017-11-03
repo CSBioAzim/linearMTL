@@ -59,16 +59,6 @@ TestLinearMTL <- function(method = "group") {
                                     mu = 0.001, mu.adapt = 0.99,
                                     verbose = 0)
     tggl.model <- tggl$full.model
-    # tggl.stand <- TreeGuidedGroupLasso(X = Xtrain,
-    #                              Y = Ytrain,
-    #                              groups = M$groups,
-    #                              weights = M$weights,
-    #                              lambda = 15,
-    #                              max.iter = 10000,
-    #                              epsilon = 1e-4,
-    #                              mu = 0.001, mu.adapt = 0.99,
-    #                              verbose = 2)
-    # tggl.model <- tggl.stand
   }
   if ((method == "tbt") | (method == "all")) {
     lambda.vec = 10^seq(-5, 2, length.out = 20)
