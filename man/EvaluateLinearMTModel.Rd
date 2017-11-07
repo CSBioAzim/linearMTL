@@ -6,8 +6,7 @@
 \usage{
 EvaluateLinearMTModel(X = NULL, task.specific.features = list(), Y,
   LMTL.model, train.idx, test.idx, task.grouping = NULL,
-  feature.names = NULL, task.names = NULL, sd.threshold = 1.5,
-  out.dir = NULL)
+  feature.names = NULL, task.names = NULL, sd.threshold = 1.5, out.dir)
 }
 \arguments{
 \item{X}{Column centered N by J input matrix of features common to all tasks.}
@@ -36,20 +35,11 @@ task.}
 \item{sd.threshold}{All features with error changes above sd.threshold times
 the standard deviation will be taken as important.}
 
-\item{out.dir}{Output directory for plots.}
-}
-\value{
-List containing
-    \item{err.out}{Matrix containing training and test correlation and MSE.}
-     \item{error.change}{Error changes for excluding features from the
-     predictions.}
-     \item{regulators.and.targets}{If task.grouping is not NULL: Matrix
-     of strings containing top regulators and their targets.}
+\item{out.dir}{Output directory for results and plots.}
 }
 \description{
 Compute training and test errors for the given indices as well as error
 changes for excluding features. If task.grouping is supplied, identify top
 regulators per group and plot clustering of the regression coefficients along
-with the most important features. Save plots to directory out.dir or plot
-to screen if out.dir is NULL.
+with the most important features. Save results to directory out.dir.
 }

@@ -5,7 +5,8 @@
 \title{Evaluate clustered LinearMTL model.}
 \usage{
 EvaluateClusteredLinearMTModel(X = NULL, task.specific.features = list(), Y,
-  LMTL.model.list, train.idx.by.cluster, test.idx.by.cluster)
+  LMTL.model.list, train.idx.by.cluster, test.idx.by.cluster,
+  task.names = NULL, out.dir)
 }
 \arguments{
 \item{X}{Column centered N by J input matrix of features common to all tasks.}
@@ -22,9 +23,10 @@ according to the columns of Y.}
 \item{train.idx.by.cluster}{List of training indices per cluster.}
 
 \item{test.idx.by.cluster}{List of test indices per cluster.}
-}
-\value{
-Matrix containing training and test correlation and MSE.
+
+\item{task.names}{Task names.}
+
+\item{out.dir}{Output directory for results and plots.}
 }
 \description{
 Compute training and test errors for the given indices.

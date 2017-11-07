@@ -7,8 +7,7 @@
 #' Compute training and test errors for the given indices as well as error
 #' changes for excluding features. If task.grouping is supplied, identify top
 #' regulators per group and plot clustering of the regression coefficients along
-#' with the most important features. Save plots to directory out.dir or plot
-#' to screen if out.dir is NULL.
+#' with the most important features. Save results to directory out.dir.
 #'
 #' @param X Column centered N by J input matrix of features common to all tasks.
 #' @param task.specific.features Named list of features which are specific to
@@ -26,20 +25,13 @@
 #' @param task.names Task names.
 #' @param sd.threshold All features with error changes above sd.threshold times
 #'   the standard deviation will be taken as important.
-#' @param out.dir Output directory for plots.
-#'
-#' @return List containing
-#'     \item{err.out}{Matrix containing training and test correlation and MSE.}
-#'      \item{error.change}{Error changes for excluding features from the
-#'      predictions.}
-#'      \item{regulators.and.targets}{If task.grouping is not NULL: Matrix
-#'      of strings containing top regulators and their targets.}
+#' @param out.dir Output directory for results and plots.
 #'
 #' @export
 EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, LMTL.model,
                                   train.idx, test.idx, task.grouping = NULL,
                                   feature.names = NULL, task.names = NULL,
-                                  sd.threshold = 1.5, out.dir = NULL) {
+                                  sd.threshold = 1.5, out.dir) {
 
   # initialization and error checking
   if (is.null(X) & (length(task.specific.features) == 0)) {
@@ -73,26 +65,6 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
     stop("B must have as many rows as there are features in X and task.specific.features!")
   }
 
-  # compute predictions
-  predictions <- MTPredict(LMTL.model = LMTL.model, X = X,
-                           task.specific.features = task.specific.features)
-  train.pred <- predictions[train.idx, ]
-  test.pred <- predictions[test.idx, ]
-
-  # compute training and test error
-  err.out <- matrix(0, nrow = 2, ncol = 2)
-  dimnames(err.out) <- list(c("train", "test"), c("mse", "cor"))
-
-  err.out["train", "mse"] <- MTComputeError(Y = Y[train.idx, ], pred = train.pred)
-  err.out["train", "cor"] <- MTComputeMeanCorrelation(Y = Y[train.idx, ], pred = train.pred)
-
-  err.out["test", "mse"] <- MTComputeError(Y = Y[test.idx, ], pred = test.pred)
-  err.out["test", "cor"] <- MTComputeMeanCorrelation(Y = Y[test.idx, ], pred = test.pred)
-
-  # print matrix
-  print(err.out)
-
-  # compute error changes
   if (is.null(feature.names)) {
     feature.names <- 1:J
   }
@@ -100,7 +72,54 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
     task.names <- 1:K
   }
 
-  squared.diff <- (Y[train.idx, ] - train.pred)^2
+  # compute predictions
+  predictions <- MTPredict(LMTL.model = LMTL.model, X = X,
+                           task.specific.features = task.specific.features)
+  train.pred <- predictions[train.idx, ]
+  test.pred <- predictions[test.idx, ]
+
+  # compute training and test error
+  err.out <- matrix(0, nrow = 2, ncol = 3)
+  dimnames(err.out) <- list(c("train", "test"), c("mse", "cor", "r2"))
+
+  train.residuals <- (Y[train.idx, ] - train.pred)^2
+  test.residuals <- (Y[test.idx, ] - test.pred)^2
+
+  train.mse <- colMeans(train.residuals)
+  test.mse <- colMeans(test.residuals)
+
+  train.cor.spearman <- diag(cor(train.pred, Y[train.idx, ], method = "spearman"))
+  train.cor.pearson <- diag(cor(train.pred, Y[train.idx, ], method = "pearson"))
+
+  test.cor.spearman <- diag(cor(test.pred, Y[test.idx, ], method = "spearman"))
+  test.cor.pearson <- diag(cor(test.pred, Y[test.idx, ], method = "pearson"))
+
+  train.r2 <- 1 - colSums(train.residuals) / colSums((Y[train.idx, ] - colMeans(Y[train.idx, ]))^2)
+  test.r2 <- 1 - colSums(test.residuals) / colSums((Y[test.idx, ] - colMeans(Y[test.idx, ]))^2)
+
+  err.out["train", "mse"] <- mean(train.mse)
+  err.out["train", "cor"] <- mean(train.cor.spearman)
+  err.out["train", "r2"] <- mean(train.r2)
+
+  err.out["test", "mse"] <- mean(test.mse)
+  err.out["test", "cor"] <- mean(test.cor.spearman)
+  err.out["test", "r2"] <- mean(test.r2)
+
+  # print matrix
+  print(err.out)
+
+  # save
+  write.table(err.out, file.path(out.dir, "error.txt"),
+              quote = FALSE, sep = '\t')
+
+
+  task.by.task.statistics <- rbind(train.mse, test.mse,
+                                   train.cor.pearson, test.cor.pearson,
+                                   train.cor.spearman, test.cor.spearman)
+  colnames(task.by.task.statistics) <- task.names
+  saveRDS(task.by.task.statistics, file.path(out.dir, "tbt_stats.rds"))
+
+  # compute error changes
   error.change <- matrix(0, J, K, dimnames = list(feature.names, task.names))
 
   print("Computing error changes ... ")
@@ -108,7 +127,7 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
   if (J1 > 0) {
     for (j in 1:J1) {
       feature.contribution <- X[train.idx, j, drop = FALSE] %*% LMTL.model$B[j, , drop = FALSE] + LMTL.model$intercept
-      error.change[j, ] <- colSums(((train.pred - feature.contribution) - Y[train.idx, ])^2 - squared.diff)
+      error.change[j, ] <- colSums(((train.pred - feature.contribution) - Y[train.idx, ])^2 - train.residuals)
     }
   }
   # compute error change for excluding task specific features
@@ -116,12 +135,13 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
     for (j in 1:J2) {
       feature.contribution <- sapply(1:K, FUN = function(x){
         task.specific.features[[x]][train.idx, j, drop = FALSE] %*% LMTL.model$B[J1 + j, x, drop = FALSE] + LMTL.model$intercept[x]
-        })
-      error.change[J1 + j, ] <- colSums(((train.pred - feature.contribution) - Y[train.idx, ])^2 - squared.diff)
+      })
+      error.change[J1 + j, ] <- colSums(((train.pred - feature.contribution) - Y[train.idx, ])^2 - train.residuals)
     }
   }
 
   error.change <- error.change / nrow(Y[train.idx,])
+  saveRDS(error.change, file.path(out.dir, "error_changes.rds"))
 
   if (!is.null(task.grouping)) {
     dimnames(LMTL.model$B) <- list(feature.names, task.names)
@@ -134,9 +154,7 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
     target.regulation <- list ()
     candidate.regulators$Common <- rownames(error.change)
 
-    if (!is.null(out.dir)) {
-      pdf(sprintf('%s/Agg_errors.pdf', out.dir))
-    }
+    pdf(sprintf('%s/Agg_errors.pdf', out.dir))
 
     for (group in names(tasks.by.group)) {
       agg.errors <- rowSums(error.change[, tasks.by.group[[group]], drop = FALSE])
@@ -148,7 +166,7 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
       target.regulation[[group]] <- apply(X = LMTL.model$B[,tasks.by.group[[group]], drop = FALSE], MARGIN = 1,
                                           FUN = function (x) {
                                             ifelse (length (which (x > 0)) > length (which (x<0)), 'Up', 'Down')
-                                            })[candidates]
+                                          })[candidates]
       df <- data.frame(x = 1:length(agg.errors), y = sort(agg.errors), Cutoff = 'Below', stringsAsFactors = FALSE)
       df$Cutoff[df$y >= cutoff] <- 'Above'
       plot (0, 0, xlim = c(1, length(agg.errors)), ylim = range(agg.errors), type = 'n',
@@ -158,15 +176,12 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
       lines(c(-1000, 100000), c(cutoff, cutoff), lwd = 2)
       text(500, cutoff, 'Cutoff for candidate regulators\n(mean + 1.5*sd)', cex = 0.6, pos = 3)
     }
-    if (!is.null(out.dir)) {
-      dev.off ()
-    }
+
+    dev.off ()
 
     if (sum(colSums(LMTL.model$B == 0) == J) == 0) {
       print("Clustering coefficient matrix ... ")
-      if (!is.null(out.dir)) {
-        pdf(sprintf("%s/Model_clustering.pdf", out.dir))
-      }
+      pdf(sprintf("%s/Model_clustering.pdf", out.dir))
 
       # extract the selected features and overlay the dendrogram
       coefficient.dendrogram <- as.dendrogram(hclust(as.dist(1 - cor(LMTL.model$B, method = 'pearson'))))
@@ -179,9 +194,8 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
       PlotCustomHeatmap(matrix = as.matrix(LMTL.model$B[regulators.to.plot,]),
                         task.grouping = task.grouping,
                         Colv = coefficient.dendrogram)
-      if (!is.null(out.dir)) {
-        dev.off ()
-      }
+      dev.off ()
+
     } else {
       print("No clustering of coefficient matrix due to constant regression vectors.")
     }
@@ -209,12 +223,9 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
     colnames(regulators.and.targets) <- rep('', ncol(regulators.and.targets))
     colnames(regulators.and.targets)[seq(1, ncol(regulators.and.targets), 3)] <- c(names(tasks.by.group), 'Common')
 
-  }
-  if (!is.null(task.grouping)) {
-    return(list(err.out = err.out, error.change = error.change,
-                regulators.and.targets = regulators.and.targets))
-  } else {
-    return(list(err.out = err.out, error.change = error.change))
+    # save
+    write.table(regulators.and.targets, file.path(out.dir, "regulators_and_targets.txt"),
+                quote = FALSE, sep = '\t')
   }
 }
 
@@ -231,12 +242,13 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
 #' @param LMTL.model.list List of LinearMTL models.
 #' @param train.idx.by.cluster List of training indices per cluster.
 #' @param test.idx.by.cluster List of test indices per cluster.
-#'
-#' @return Matrix containing training and test correlation and MSE.
+#' @param task.names Task names.
+#' @param out.dir Output directory for results and plots.
 #'
 #' @export
 EvaluateClusteredLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, LMTL.model.list,
-                                           train.idx.by.cluster, test.idx.by.cluster) {
+                                           train.idx.by.cluster, test.idx.by.cluster,
+                                           task.names = NULL, out.dir) {
 
   # initialization and error checking
   if (is.null(X) & (length(task.specific.features) == 0)) {
@@ -266,6 +278,10 @@ EvaluateClusteredLinearMTModel <- function(X = NULL, task.specific.features = li
   K <- ncol(Y)
   J <- J1 + J2
 
+  if (is.null(task.names)) {
+    task.names <- 1:K
+  }
+
   predictions <- matrix(0, N, K)
   for (k in seq_along(LMTL.model.list)) {
     # compute predictions for every cluster
@@ -289,18 +305,45 @@ EvaluateClusteredLinearMTModel <- function(X = NULL, task.specific.features = li
   test.pred <- predictions[test.idx, ]
 
   # compute training and test error
-  err.out <- matrix(0, nrow = 2, ncol = 2)
-  dimnames(err.out) <- list(c("train", "test"), c("mse", "cor"))
+  err.out <- matrix(0, nrow = 2, ncol = 3)
+  dimnames(err.out) <- list(c("train", "test"), c("mse", "cor", "r2"))
 
-  err.out["train", "mse"] <- MTComputeError(Y = Y[train.idx, ], pred = train.pred)
-  err.out["train", "cor"] <- MTComputeMeanCorrelation(Y = Y[train.idx, ], pred = train.pred)
+  train.residuals <- (Y[train.idx, ] - train.pred)^2
+  test.residuals <- (Y[test.idx, ] - test.pred)^2
 
-  err.out["test", "mse"] <- MTComputeError(Y = Y[test.idx, ], pred = test.pred)
-  err.out["test", "cor"] <- MTComputeMeanCorrelation(Y = Y[test.idx, ], pred = test.pred)
+  train.mse <- colMeans(train.residuals)
+  test.mse <- colMeans(test.residuals)
+
+  train.cor.spearman <- diag(cor(train.pred, Y[train.idx, ], method = "spearman"))
+  train.cor.pearson <- diag(cor(train.pred, Y[train.idx, ], method = "pearson"))
+
+  test.cor.spearman <- diag(cor(test.pred, Y[test.idx, ], method = "spearman"))
+  test.cor.pearson <- diag(cor(test.pred, Y[test.idx, ], method = "pearson"))
+
+  train.r2 <- 1 - colSums(train.residuals) / colSums((Y[train.idx, ] - colMeans(Y[train.idx, ]))^2)
+  test.r2 <- 1 - colSums(test.residuals) / colSums((Y[test.idx, ] - colMeans(Y[test.idx, ]))^2)
+
+  err.out["train", "mse"] <- mean(train.mse)
+  err.out["train", "cor"] <- mean(train.cor.spearman)
+  err.out["train", "r2"] <- mean(train.r2)
+
+  err.out["test", "mse"] <- mean(test.mse)
+  err.out["test", "cor"] <- mean(test.cor.spearman)
+  err.out["test", "r2"] <- mean(test.r2)
 
   # print / save
   print(err.out)
-  return(err.out)
+
+  # save
+  write.table(err.out, file.path(out.dir, "error.txt"),
+              quote = FALSE, sep = '\t')
+
+
+  task.by.task.statistics <- rbind(train.mse, test.mse,
+                                   train.cor.pearson, test.cor.pearson,
+                                   train.cor.spearman, test.cor.spearman)
+  colnames(task.by.task.statistics) <- task.names
+  saveRDS(task.by.task.statistics, file.path(out.dir, "tbt_stats.rds"))
 }
 
 
