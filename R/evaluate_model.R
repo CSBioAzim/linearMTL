@@ -79,8 +79,8 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
   test.pred <- predictions[test.idx, ]
 
   # compute training and test error
-  err.out <- matrix(0, nrow = 2, ncol = 3)
-  dimnames(err.out) <- list(c("train", "test"), c("mse", "cor", "r2"))
+  err.out <- matrix(0, nrow = 2, ncol = 2)
+  dimnames(err.out) <- list(c("train", "test"), c("mse", "cor"))
 
   train.residuals <- (Y[train.idx, ] - train.pred)^2
   test.residuals <- (Y[test.idx, ] - test.pred)^2
@@ -94,16 +94,11 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
   test.cor.spearman <- diag(cor(test.pred, Y[test.idx, ], method = "spearman"))
   test.cor.pearson <- diag(cor(test.pred, Y[test.idx, ], method = "pearson"))
 
-  train.r2 <- 1 - colSums(train.residuals) / colSums((Y[train.idx, ] - colMeans(Y[train.idx, ]))^2)
-  test.r2 <- 1 - colSums(test.residuals) / colSums((Y[test.idx, ] - colMeans(Y[test.idx, ]))^2)
-
   err.out["train", "mse"] <- mean(train.mse)
   err.out["train", "cor"] <- mean(train.cor.spearman)
-  err.out["train", "r2"] <- mean(train.r2)
 
   err.out["test", "mse"] <- mean(test.mse)
   err.out["test", "cor"] <- mean(test.cor.spearman)
-  err.out["test", "r2"] <- mean(test.r2)
 
   # print matrix
   print(err.out)
@@ -111,7 +106,6 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
   # save
   write.table(err.out, file.path(out.dir, "error.txt"),
               quote = FALSE, sep = '\t')
-
 
   task.by.task.statistics <- rbind(train.mse, test.mse,
                                    train.cor.pearson, test.cor.pearson,
@@ -305,8 +299,8 @@ EvaluateClusteredLinearMTModel <- function(X = NULL, task.specific.features = li
   test.pred <- predictions[test.idx, ]
 
   # compute training and test error
-  err.out <- matrix(0, nrow = 2, ncol = 3)
-  dimnames(err.out) <- list(c("train", "test"), c("mse", "cor", "r2"))
+  err.out <- matrix(0, nrow = 2, ncol = 2)
+  dimnames(err.out) <- list(c("train", "test"), c("mse", "cor"))
 
   train.residuals <- (Y[train.idx, ] - train.pred)^2
   test.residuals <- (Y[test.idx, ] - test.pred)^2
@@ -320,16 +314,11 @@ EvaluateClusteredLinearMTModel <- function(X = NULL, task.specific.features = li
   test.cor.spearman <- diag(cor(test.pred, Y[test.idx, ], method = "spearman"))
   test.cor.pearson <- diag(cor(test.pred, Y[test.idx, ], method = "pearson"))
 
-  train.r2 <- 1 - colSums(train.residuals) / colSums((Y[train.idx, ] - colMeans(Y[train.idx, ]))^2)
-  test.r2 <- 1 - colSums(test.residuals) / colSums((Y[test.idx, ] - colMeans(Y[test.idx, ]))^2)
-
   err.out["train", "mse"] <- mean(train.mse)
   err.out["train", "cor"] <- mean(train.cor.spearman)
-  err.out["train", "r2"] <- mean(train.r2)
 
   err.out["test", "mse"] <- mean(test.mse)
   err.out["test", "cor"] <- mean(test.cor.spearman)
-  err.out["test", "r2"] <- mean(test.r2)
 
   # print / save
   print(err.out)
