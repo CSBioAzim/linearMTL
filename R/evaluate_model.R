@@ -72,13 +72,14 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
     task.names <- 1:K
   }
 
-  # compute predictions
+  ################################################################################
+  # compute training and test errors and correlation on unstandardized data
+
   predictions <- MTPredict(LMTL.model = LMTL.model, X = X,
                            task.specific.features = task.specific.features)
   train.pred <- predictions[train.idx, ]
   test.pred <- predictions[test.idx, ]
 
-  # compute training and test error
   err.out <- matrix(0, nrow = 2, ncol = 2)
   dimnames(err.out) <- list(c("train", "test"), c("mse", "cor"))
 
@@ -112,6 +113,52 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
                                    train.cor.spearman, test.cor.spearman)
   colnames(task.by.task.statistics) <- task.names
   saveRDS(task.by.task.statistics, file.path(out.dir, "tbt_stats.rds"))
+
+  ##############################################################################
+  # standardize data for computing feature contribution
+
+  # remember means and standard deviations
+  X.sds <- NULL
+  X.mus <- NULL
+  tsf.sds <- list()
+  tsf.mus <- list()
+  Y.sds <- NULL
+  Y.mus <- NULL
+
+  if (J1 > 0) {
+    X.sds <- apply(X[train.idx, ], 2, sd)
+    X.mus <- apply(X[train.idx, ], 2, mean)
+    X <- scale(X, center = X.mus, scale = X.sds)
+  }
+  if (J2 > 0) {
+    tsf.sds <- lapply(task.specific.features, FUN = function(A){apply(A[train.idx, ], 2, sd)})
+    tsf.mus <- lapply(task.specific.features, FUN = function(A){apply(A[train.idx, ], 2, mean)})
+    task.specific.features <- lapply(1:K, FUN = function(k){scale(task.specific.features[[k]],
+                                                                  center = tsf.mus[[k]],
+                                                                  scale = tsf.sds)})
+  }
+  Y.mus <- apply(Y[train.idx, ], 2, mean)
+  Y.sds <- apply(Y[train.idx, ], 2, sd)
+  Y <- scale(Y, center = Y.mus, scale = Y.sds)
+
+
+  B.old <- rbind(LMTL.model$intercept, LMTL.model$B)
+  # compute Artesi transformation of coefficients
+  LMTL.model$intercept <- rep(0, length(LMTL.model$intercept))
+  for (k in 1:K) {
+    input.sds <- X.sds
+    input.mus <- X.mus
+    if (length(tsf.sds) > 0) {
+      input.sds <- c(input.sds, tsf.sds[[k]])
+      input.mus <- c(input.mus, tsf.mus[[k]])
+    }
+    LMTL.model$B[, k] <- LMTL.model$B[, k] * input.sds / Y.sds[k]
+  }
+
+  predictions <- MTPredict(LMTL.model = LMTL.model, X = X,
+                           task.specific.features = task.specific.features)
+  train.pred <- predictions[train.idx, ]
+  train.residuals <- (Y[train.idx, ] - train.pred)^2
 
   # compute error changes
   error.change <- matrix(0, J, K, dimnames = list(feature.names, task.names))
