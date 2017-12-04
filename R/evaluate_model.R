@@ -135,7 +135,7 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
     tsf.mus <- lapply(task.specific.features, FUN = function(A){apply(A[train.idx, ], 2, mean)})
     task.specific.features <- lapply(1:K, FUN = function(k){scale(task.specific.features[[k]],
                                                                   center = tsf.mus[[k]],
-                                                                  scale = tsf.sds)})
+                                                                  scale = tsf.sds[[k]])})
   }
   Y.mus <- apply(Y[train.idx, ], 2, mean)
   Y.sds <- apply(Y[train.idx, ], 2, sd)
