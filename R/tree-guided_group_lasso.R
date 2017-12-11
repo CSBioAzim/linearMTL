@@ -191,7 +191,7 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
   start.time <- Sys.time();
   while (iter < max.iter & delta > epsilon) {
     # optimize
-    A <- Shrink(C %*% t(W) / mu, group.ranges)
+    A <- RcppShrink(C %*% t(W) / mu, group.ranges)
     df <- t(A) %*% C
     if (length(task.specific.features) > 0) {
       # task specific features
@@ -263,6 +263,7 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
               obj = obj, early.termination = early.termination))
 }
 
+# Use Rcpp implementation instead: 'RcppShrink'.
 Shrink <- function(A, group.ranges) {
   # Applies shrinkage operator to matrix A.
   #
