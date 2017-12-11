@@ -11,7 +11,7 @@
 #'   intercept).
 #' @param X N by J1 matrix of features common to all tasks.
 #' @param task.specific.features Named list of features which are specific to
-#'   each task. Each entry contains an N by J2 column-centered matrix for one
+#'   each task. Each entry contains an N by J2 matrix for one
 #'   particular task (where columns are features). List has to be ordered
 #'   according to the columns of Y.
 #'
@@ -77,10 +77,10 @@ MTPredict <- function(LMTL.model, X = NULL, task.specific.features = list()) {
 #'
 #' @param LMTL.model Linear multi-task learning model (list containing B and
 #'   intercept).
-#' @param Y Column centered N by K output matrix for every task.
+#' @param Y N by K output matrix for every task.
 #' @param X N by J1 matrix of features common to all tasks.
 #' @param task.specific.features Named list of features which are specific to
-#'   each task. Each entry contains an N by J2 column-centered matrix for one
+#'   each task. Each entry contains an N by J2 matrix for one
 #'   particular task (where columns are features). List has to be ordered
 #'   according to the columns of Y.
 #' @param pred Predicted output matrix. If NULL, compute predictions using input
@@ -114,10 +114,10 @@ MTComputeError <- function (LMTL.model, Y, X = NULL,
 #'
 #' @param LMTL.model Linear multi-task learning model (list containing B and
 #'   intercept).
-#' @param Y Column centered N by K output matrix for every task.
+#' @param Y N by K output matrix for every task.
 #' @param X N by J1 matrix of features common to all tasks.
 #' @param task.specific.features Named list of features which are specific to
-#'   each task. Each entry contains an N by J2 column-centered matrix for one
+#'   each task. Each entry contains an N by J2 matrix for one
 #'   particular task (where columns are features). List has to be ordered
 #'   according to the columns of Y.
 #' @param pred Predicted output matrix. If NULL, compute predictions using input

@@ -13,7 +13,7 @@ intercept).}
 \item{X}{N by J1 matrix of features common to all tasks.}
 
 \item{task.specific.features}{Named list of features which are specific to
-each task. Each entry contains an N by J2 column-centered matrix for one
+each task. Each entry contains an N by J2 matrix for one
 particular task (where columns are features). List has to be ordered
 according to the columns of Y.}
 }
