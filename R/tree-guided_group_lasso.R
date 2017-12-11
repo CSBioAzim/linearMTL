@@ -203,8 +203,8 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
       # no task specific features
       dh <- 1/N * (XTX %*% W - XTY) + df
     }
-    V <- W - 1/L * dh
-    B.new  <- sign(V) * pmax(0, sweep(abs(V), 2, lambda/L * singleton.weights))
+    Q <- W - 1/L * dh
+    B.new  <- sign(Q) * pmax(0, sweep(abs(Q), 2, lambda/L * singleton.weights))
     theta.new <- 2 / (iter + 3)
     W <- B.new + (1 - theta) / theta * theta.new * (B.new - B)
 
