@@ -6,16 +6,16 @@
 \usage{
 TreeGuidedGroupLasso(X = NULL, task.specific.features = list(), Y, groups,
   weights, lambda, max.iter = 10000, epsilon = 1e-05, mu = NULL,
-  mu.adapt = 1, XTX = NULL, XTY = NULL, init.B = NULL, verbose = 1,
-  standardize = TRUE)
+  mu.adapt = 1, XTX = NULL, XTY = NULL, MSE.Lipschitz = NULL,
+  init.B = NULL, verbose = 1, standardize = TRUE)
 }
 \arguments{
 \item{X}{N by J1 matrix of features common to all tasks.}
 
-\item{task.specific.features}{List of features which are specific to
-each task. Each entry contains an N by J2 matrix for one
-particular task (where columns are features). List has to be ordered
-according to the columns of Y.}
+\item{task.specific.features}{List of features which are specific to each
+task. Each entry contains an N by J2 matrix for one particular task (where
+columns are features). List has to be ordered according to the columns of
+Y.}
 
 \item{Y}{N by K output matrix for every task.}
 
@@ -26,30 +26,35 @@ iff groups[v,k] == 1.}
 
 \item{lambda}{Regularization parameter.}
 
-\item{max.iter}{Maximum number of iterations.}
+\item{mu}{(Optional) Determines accuracy of smooth approximation to the group
+penalty term. If NULL, mu will be determined based on desired accuracy
+epsilon.}
 
-\item{epsilon}{Desired accuracy. If error change drops below epsilon, the
-algorithm terminates. Also used to compute mu if mu == NULL.}
+\item{mu.adapt}{(Optional) Multiply mu with a factor of mu.adapt every
+iteration. Default is no adaptation (mu.adapt = 1).}
 
-\item{mu}{Determines accuracy of smooth approximation to the group penalty
-term.}
-
-\item{mu.adapt}{Multiply mu with a factor of mu.adapt every iteration.}
-
-\item{XTX}{Precomputed matrices t(X)*X as for example produced by
+\item{XTX}{(Optional) Precomputed matrices t(X)*X as for example produced by
 PrepareMatrices.}
 
-\item{XTY}{Precomputed matrices t(X)*Y as for example produced by
+\item{XTY}{(Optional) Precomputed matrices t(X)*Y as for example produced by
 PrepareMatrices}
 
-\item{init.B}{J by K matrix with initializations for the regression
-coefficients.}
+\item{MSE.Lipschitz}{(Optional) Lipschitz constant for MSE. If missing, use
+maximum Eigenvalue of XTX.}
 
-\item{verbose}{Integer in {0,1,2}. verbose = 0: No output. verbose = 1: Print
-summary at the end of the optimization. verbose = 2: Print progress during
-optimization.}
+\item{init.B}{(Optional) J by K matrix with initializations for the
+regression coefficients.}
 
-\item{standardize}{Standardize data (default is TRUE).}
+\item{verbose}{(Optional) Integer in {0,1,2}. verbose = 0: No output. verbose
+= 1: Print summary at the end of the optimization. verbose = 2: Print
+progress during optimization.}
+
+\item{standardize}{(Optional) Standardize data (default is TRUE).}
+
+\item{(Optional)}{max.iter Maximum number of iterations.}
+
+\item{(Optional)}{epsilon Desired accuracy. If error change drops below
+epsilon, the algorithm terminates.}
 }
 \value{
 List containing

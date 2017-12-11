@@ -5,31 +5,35 @@
 #' matrices.
 #'
 #' @param X N by J1 matrix of features common to all tasks.
-#' @param task.specific.features List of features which are specific to
-#'   each task. Each entry contains an N by J2 matrix for one
-#'   particular task (where columns are features). List has to be ordered
-#'   according to the columns of Y.
+#' @param task.specific.features List of features which are specific to each
+#'   task. Each entry contains an N by J2 matrix for one particular task (where
+#'   columns are features). List has to be ordered according to the columns of
+#'   Y.
 #' @param Y N by K output matrix for every task.
 #' @param groups V by K matrix determining group membership: Task k in group v
 #'   iff groups[v,k] == 1.
 #' @param weights V dimensional vector with group weights.
 #' @param lambda Regularization parameter.
-#' @param max.iter Maximum number of iterations.
-#' @param epsilon Desired accuracy. If error change drops below epsilon, the
-#'   algorithm terminates. Also used to compute mu if mu == NULL.
-#' @param mu Determines accuracy of smooth approximation to the group penalty
-#'   term.
-#' @param mu.adapt Multiply mu with a factor of mu.adapt every iteration.
-#' @param XTX Precomputed matrices t(X)*X as for example produced by
+#' @param (Optional) max.iter Maximum number of iterations.
+#' @param (Optional) epsilon Desired accuracy. If error change drops below
+#'   epsilon, the algorithm terminates.
+#' @param mu (Optional) Determines accuracy of smooth approximation to the group
+#'   penalty term. If NULL, mu will be determined based on desired accuracy
+#'   epsilon.
+#' @param mu.adapt (Optional) Multiply mu with a factor of mu.adapt every
+#'   iteration. Default is no adaptation (mu.adapt = 1).
+#' @param XTX (Optional) Precomputed matrices t(X)*X as for example produced by
 #'   PrepareMatrices.
-#' @param XTY Precomputed matrices t(X)*Y as for example produced by
+#' @param XTY (Optional) Precomputed matrices t(X)*Y as for example produced by
 #'   PrepareMatrices
-#' @param init.B J by K matrix with initializations for the regression
-#'   coefficients.
-#' @param verbose Integer in {0,1,2}. verbose = 0: No output. verbose = 1: Print
-#'   summary at the end of the optimization. verbose = 2: Print progress during
-#'   optimization.
-#' @param standardize Standardize data (default is TRUE).
+#' @param MSE.Lipschitz (Optional) Lipschitz constant for MSE. If missing, use
+#'   maximum Eigenvalue of XTX.
+#' @param init.B (Optional) J by K matrix with initializations for the
+#'   regression coefficients.
+#' @param verbose (Optional) Integer in {0,1,2}. verbose = 0: No output. verbose
+#'   = 1: Print summary at the end of the optimization. verbose = 2: Print
+#'   progress during optimization.
+#' @param standardize (Optional) Standardize data (default is TRUE).
 #'
 #' @return List containing
 #'   \item{lambda}{Regularization parameter used.}
@@ -43,8 +47,11 @@
 #' @seealso \code{\link{RunGroupCrossvalidation}}
 #' @export
 TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
-                                  groups, weights, lambda, max.iter = 10000, epsilon = 1e-5,
-                                  mu = NULL, mu.adapt = 1, XTX = NULL, XTY = NULL, init.B = NULL,
+                                  groups, weights, lambda,
+                                  max.iter = 10000, epsilon = 1e-5,
+                                  mu = NULL, mu.adapt = 1,
+                                  XTX = NULL, XTY = NULL, MSE.Lipschitz = NULL,
+                                  init.B = NULL,
                                   verbose = 1, standardize = TRUE) {
 
   # initialization and error checking
@@ -162,12 +169,18 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
   # compute Lipschitz constant
   C.norm.squared <- t(tcrossprod(rep(1, K), weights)) * groups;
   C.norm.squared <- lambda^2 * max(colSums(C.norm.squared^2));
-  if (length(task.specific.features) > 0) {
-    # expensive
-    #L1 <- max(unlist(lapply(XTX, FUN = function(M) {max(eigen(M)$values)})))
-    L1 <- max(eigen(XTX[[1]])$values) / N
+
+  if (is.null(MSE.Lipschitz)) {
+    if (J2 > 0) {
+      # too expensive:
+      #L1 <- max(unlist(lapply(XTX, FUN = function(M) {max(eigen(M)$values)})))
+      # instead just consider first matrix
+      L1 <- max(eigen(XTX[[1]])$values) / N
+    } else {
+      L1 <- max(eigen(XTX)$values) / N
+    }
   } else {
-    L1 <- max(eigen(XTX)$values) / N
+    L1 <- MSE.Lipschitz / N
   }
 
   # Lipschitz constant

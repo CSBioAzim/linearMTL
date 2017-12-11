@@ -93,6 +93,18 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
     XTY.global[[i]] <- mats[[i]]$XTY
   }
 
+  MSE.Lipschitz.list <- list()
+  for (i in seq_along(XTX.global)) {
+    if (J2 > 0) {
+      # too expensive:
+      #L1 <- max(unlist(lapply(XTX, FUN = function(M) {max(eigen(M)$values)})))
+      # instead just consider first matrix
+      MSE.Lipschitz.list[[i]] <- max(eigen(XTX.global[[i]][[1]])$values)
+    } else {
+      MSE.Lipschitz.list[[i]] <- max(eigen(XTX.global[[i]])$values)
+    }
+  }
+
   # build parameter grid
   parameter.grid <- cbind(lambda.vec, matrix(rep(weights.matrix, each = length(lambda.vec)),
                                              ncol = ncol(weights.matrix)))
@@ -127,9 +139,12 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
       }
 
       # train model
-      fold.result <- TreeGuidedGroupLasso(X = X[-fold, ], task.specific.features = fold.ex.task.specific.features,
-                                          Y = Y[-fold,,drop = FALSE], groups = groups, weights = weights, lambda = lambda,
-                                          XTX = XTX.global[[i]], XTY = XTY.global[[i]], ...)
+      fold.result <- TreeGuidedGroupLasso(X = X[-fold, ],
+                                          task.specific.features = fold.ex.task.specific.features,
+                                          Y = Y[-fold,,drop = FALSE],
+                                          groups = groups, weights = weights, lambda = lambda,
+                                          XTX = XTX.global[[i]], XTY = XTY.global[[i]],
+                                          MSE.Lipschitz = MSE.Lipschitz.list[[i]], ...)
       early.termination <- early.termination & fold.result$early.termination
       error <- error + MTComputeError(LMTL.model = fold.result, Y = Y[fold, , drop = FALSE],
                                       X = X[fold, ], task.specific.features = fold.task.specific.features)
