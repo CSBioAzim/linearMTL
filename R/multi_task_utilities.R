@@ -80,19 +80,22 @@ MTPredict <- function(LMTL.model, X = NULL, task.specific.features = list()) {
 #' @param Y N by K output matrix for every task.
 #' @param X N by J1 matrix of features common to all tasks.
 #' @param task.specific.features Named list of features which are specific to
-#'   each task. Each entry contains an N by J2 matrix for one
-#'   particular task (where columns are features). List has to be ordered
-#'   according to the columns of Y.
+#'   each task. Each entry contains an N by J2 matrix for one particular task
+#'   (where columns are features). List has to be ordered according to the
+#'   columns of Y.
 #' @param pred Predicted output matrix. If NULL, compute predictions using input
 #'   features.
 #' @param normalize Compute mean (TRUE) or sum (FALSE).
+#' @param aggregate.tasks Aggregate results over all tasks (TRUE) or return task
+#'   specific errors (FALSE).
 #'
 #' @return The (mean) squared error between predictions for each task and Y.
 #'
 #' @export
 MTComputeError <- function (LMTL.model, Y, X = NULL,
                             task.specific.features = list(),
-                            pred = NULL, normalize = TRUE) {
+                            pred = NULL, normalize = TRUE,
+                            aggregate.tasks = TRUE) {
 
   if (is.null(pred)) {
     pred <- MTPredict(LMTL.model = LMTL.model, X = X,
@@ -103,10 +106,21 @@ MTComputeError <- function (LMTL.model, Y, X = NULL,
     }
   }
 
+  D <- (Y - pred)^2
   if (normalize) {
-    return(mean((Y - pred)^2))
+    # compute mean
+    if (aggregate.tasks) {
+      return(mean(D))
+    } else {
+      return(colMeans(D))
+    }
   } else {
-    return(sum((Y - pred)^2))
+    # compute sum
+    if (aggregate.tasks) {
+      return(sum(D))
+    } else {
+      return(colSums(D))
+    }
   }
 }
 
@@ -154,13 +168,13 @@ MTComputeMeanCorrelation <- function (LMTL.model, Y, X = NULL,
 #' @param Y N by K output matrix for every task.
 #' @param X N by J1 matrix of features common to all tasks.
 #' @param task.specific.features Named list of features which are specific to
-#'   each task. Each entry contains an N by J2 matrix for one
-#'   particular task (where columns are features). List has to be ordered
-#'   according to the columns of Y.
+#'   each task. Each entry contains an N by J2 matrix for one particular task
+#'   (where columns are features). List has to be ordered according to the
+#'   columns of Y.
 #' @param standardize Standardize data (default is TRUE).
 #'
-#' @return List with XTX and XTY if no task specific features are supplied, or
-#'   list of lists otherwise.
+#' @return List containing Y, X, task.specific.features, XTX and XTY. Also
+#'   return means and standard deviations for Y and all inputs.
 #'
 #' @seealso \code{\link{TreeGuidedGroupLasso}}, \code{\link{RunGroupCrossvalidation}}.
 #' @export
@@ -174,27 +188,46 @@ PrepareMatrices <- function(Y, X = NULL, task.specific.features = list(),
   # initialize variables
   K <- ncol(Y)
   N <- nrow(Y)
-
   J1 <- 0
   if (!is.null(X)) {
     J1 <- ncol(X)
-    if (standardize) {
-      # center and scale
-      X <- scale(X)
-    }
   }
   J2 <- 0
   if(length(task.specific.features) > 0) {
     J2 <- ncol(task.specific.features[[1]])
-    if (standardize) {
-      # center and scale
-      task.specific.features <- lapply(task.specific.features, scale)
-    }
   }
   J <- J1 + J2
 
+  # compute sample moments
+  X.sds <- NULL
+  X.mus <- NULL
+  tsf.sds <- list()
+  tsf.mus <- list()
+  Y.sds <- NULL
+  Y.mus <- NULL
+
+  if (J1 > 0) {
+    X.sds <- apply(X, 2, sd)
+    X.mus <- apply(X, 2, mean)
+  }
+  if (J2 > 0) {
+    tsf.sds <- lapply(task.specific.features, FUN = function(A){apply(A, 2, sd)})
+    tsf.mus <- lapply(task.specific.features, FUN = function(A){apply(A, 2, mean)})
+  }
+  Y.mus <- apply(Y, 2, mean)
+  Y.sds <- apply(Y, 2, sd)
+
+  sample.moments <- list(X.mus = X.mus, X.sds = X.sds,
+                         tsf.mus = tsf.mus, tsf.sds = tsf.sds,
+                         Y.mus = Y.mus, Y.sds = Y.sds)
+  # standardize if required
   if (standardize) {
-    # center and scale response
+    if (J1 > 0) {
+      X <- scale(X)
+    }
+    if (J2 > 0) {
+      task.specific.features <- lapply(task.specific.features, scale)
+    }
     Y <- scale(Y)
   }
 
@@ -216,5 +249,9 @@ PrepareMatrices <- function(Y, X = NULL, task.specific.features = list(),
       XTY[, k] <- t(mat) %*% Y[, k]
     }
   }
-  return(list(XTX = XTX, XTY = XTY))
+
+  return(list(XTX = XTX, XTY = XTY,
+              tsf = task.specific.features, X = X, Y = Y,
+              sample.moments = sample.moments))
+
 }
