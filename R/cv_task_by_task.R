@@ -11,6 +11,7 @@
 #' @param lambda.vec Vector of regularization parameters.
 #' @param num.folds Number of folds.
 #' @param num.threads Number of threads to use.
+#' @param verbose Be verbose.
 #' @param ... Additional parameters passed to
 #'   \code{\link[glmnet]{cv.glmnet}}.
 #'
@@ -22,7 +23,8 @@
 #' @importFrom foreach foreach %dopar%
 #' @export
 RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
-                                   lambda.vec, num.folds = 10, num.threads = 1, ...) {
+                                   lambda.vec, num.folds = 10, num.threads = 1,
+                                   verbose = TRUE, ...) {
 
   # initialization and error checking
   if (is.null(X) & (length(task.specific.features) == 0)) {
@@ -63,7 +65,9 @@ RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
     #   List with lambdas and cv errors and regression coefficients for the
     #   best model trained on the full data set.
 
-    print(sprintf('Crossvalidation for task: %d', ind))
+    if (verbose) {
+      print(sprintf('Crossvalidation for task: %d', ind))
+    }
 
     error <- 0
     early.termination <- TRUE
@@ -84,8 +88,11 @@ RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
     cv.results <- glmnet::cv.glmnet(x = mat, y = Y[, ind], lambda = lambda.vec, ...)
 
     task.end.time <- Sys.time()
-    print(sprintf('Minutes to run cv for task %d: %0.1f',
-                  ind, as.numeric(task.end.time-task.start.time, units = "mins")))
+    if (verbose) {
+      print(sprintf('Minutes to run cv for task %d: %0.1f',
+                    ind, as.numeric(task.end.time-task.start.time, units = "mins")))
+
+    }
 
     # find lambda entries corresponding to lambda.vec
     # (glmnet sometimes drops lambdas from the given sequence)
