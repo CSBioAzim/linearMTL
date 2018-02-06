@@ -80,6 +80,10 @@ test_that("ComputeInverseArtesi computes correct transformation.", {
   Y.sds <- sd.alt(y)
   Y.mus <- mean(y)
 
+  sample.moments <- list(X.mus = X.mus, X.sds = X.sds,
+                         tsf.mus = list(), tsf.sds = list(),
+                         Y.mus = Y.mus, Y.sds = Y.sds)
+
   Xst <- scale(X, center = X.mus, scale = X.sds)
   yst <- scale(y, center = Y.mus, scale = Y.sds)
 
@@ -90,8 +94,6 @@ test_that("ComputeInverseArtesi computes correct transformation.", {
   coef.std <- coefficients(glm.std)
 
   B.no_std <- ComputeInverseArtesi(B = as.matrix(coef.std[-1]),
-                                   Y.sds = Y.sds, Y.mus = Y.mus,
-                                   X.sds = X.sds, X.mus = X.mus,
-                                   tsf.sds = list(), tsf.mus = list())
+                                   sample.moments = sample.moments)
   expect_equal(as.vector(B.no_std), as.vector(coef.orig.scale))
 })

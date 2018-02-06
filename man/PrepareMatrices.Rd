@@ -13,15 +13,15 @@ PrepareMatrices(Y, X = NULL, task.specific.features = list(),
 \item{X}{N by J1 matrix of features common to all tasks.}
 
 \item{task.specific.features}{Named list of features which are specific to
-each task. Each entry contains an N by J2 matrix for one
-particular task (where columns are features). List has to be ordered
-according to the columns of Y.}
+each task. Each entry contains an N by J2 matrix for one particular task
+(where columns are features). List has to be ordered according to the
+columns of Y.}
 
 \item{standardize}{Standardize data (default is TRUE).}
 }
 \value{
-List with XTX and XTY if no task specific features are supplied, or
-  list of lists otherwise.
+List containing Y, X, task.specific.features, XTX and XTY. Also
+  return means and standard deviations for Y and all inputs.
 }
 \description{
 Computes XTX and XTY. If task specific features are supplied, the result will

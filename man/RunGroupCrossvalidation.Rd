@@ -5,7 +5,8 @@
 \title{Cross-validation wrapper for \code{\link{TreeGuidedGroupLasso}}.}
 \usage{
 RunGroupCrossvalidation(X = NULL, task.specific.features = list(), Y,
-  groups, weights.matrix, lambda.vec, num.folds = 10, num.threads = 1, ...)
+  groups, weights.matrix, lambda.vec, num.folds = 10, num.threads = 1,
+  verbose = -1, standardize = TRUE, ...)
 }
 \arguments{
 \item{X}{Column centered N by J input matrix of features common to all tasks.}
@@ -29,6 +30,14 @@ mapping groups to their weight.}
 \item{num.folds}{Number of folds.}
 
 \item{num.threads}{Number of threads to use.}
+
+\item{verbose}{(Optional) Integer in {-2, -1, 0,1,2}. verbose = -2: No
+output. verbose = -1: Display total elapsed time. verbose = 0: Display
+elapsed time for every parameter. verbose = 1: Print summary at the end of
+the optimization. verbose = 2: Print progress during optimization.}
+
+\item{standardize}{(Optional) Default is TRUE. Standardize data (using R
+function scale()). Coefficients will be returned on original scale.}
 
 \item{...}{Additional parameters passed to
 \code{\link{TreeGuidedGroupLasso}}.}

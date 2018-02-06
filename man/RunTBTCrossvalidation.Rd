@@ -5,7 +5,7 @@
 \title{Cross-validation wrapper for task-by-task lasso model.}
 \usage{
 RunTBTCrossvalidation(X = NULL, task.specific.features = list(), Y,
-  lambda.vec, num.folds = 10, num.threads = 1, ...)
+  lambda.vec, num.folds = 10, num.threads = 1, verbose = TRUE, ...)
 }
 \arguments{
 \item{X}{N by J input matrix of features common to all tasks.}
@@ -22,6 +22,8 @@ according to the columns of Y.}
 \item{num.folds}{Number of folds.}
 
 \item{num.threads}{Number of threads to use.}
+
+\item{verbose}{Be verbose.}
 
 \item{...}{Additional parameters passed to
 \code{\link[glmnet]{cv.glmnet}}.}

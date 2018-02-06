@@ -5,7 +5,7 @@
 \title{Compute (mean) squared error for linear multi-task model.}
 \usage{
 MTComputeError(LMTL.model, Y, X = NULL, task.specific.features = list(),
-  pred = NULL, normalize = TRUE)
+  pred = NULL, normalize = TRUE, aggregate.tasks = TRUE)
 }
 \arguments{
 \item{LMTL.model}{Linear multi-task learning model (list containing B and
@@ -16,14 +16,17 @@ intercept).}
 \item{X}{N by J1 matrix of features common to all tasks.}
 
 \item{task.specific.features}{Named list of features which are specific to
-each task. Each entry contains an N by J2 matrix for one
-particular task (where columns are features). List has to be ordered
-according to the columns of Y.}
+each task. Each entry contains an N by J2 matrix for one particular task
+(where columns are features). List has to be ordered according to the
+columns of Y.}
 
 \item{pred}{Predicted output matrix. If NULL, compute predictions using input
 features.}
 
 \item{normalize}{Compute mean (TRUE) or sum (FALSE).}
+
+\item{aggregate.tasks}{Aggregate results over all tasks (TRUE) or return task
+specific errors (FALSE).}
 }
 \value{
 The (mean) squared error between predictions for each task and Y.

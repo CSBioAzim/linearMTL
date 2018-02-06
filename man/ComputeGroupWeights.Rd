@@ -7,9 +7,11 @@
 ComputeGroupWeights(groups, s)
 }
 \arguments{
-\item{groups}{V by K matrix determining group membership: Task k in group v iff groups[v,k] == 1.}
+\item{groups}{V by K matrix determining group membership: Task k in group v
+iff groups[v,k] == 1.}
 
-\item{s}{V dimensional vector with weights. Entries for singleton groups will be ignored.}
+\item{s}{V dimensional vector with weights. Entries for singleton groups will
+be ignored.}
 }
 \value{
 Vector containing node weights.
@@ -18,6 +20,5 @@ Vector containing node weights.
 Compute node weights using scheme from Kim et al [2010].
 }
 \seealso{
-\code{\link{TreeGuidedGroupLasso}},
-  \code{\link{BuildTreeHC}}.
+\code{\link{TreeGuidedGroupLasso}}, \code{\link{BuildTreeHC}}.
 }

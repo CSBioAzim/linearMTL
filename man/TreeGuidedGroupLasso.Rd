@@ -19,16 +19,22 @@ Y.}
 
 \item{Y}{N by K output matrix for every task.}
 
-\item{groups}{V by K matrix determining group membership: Task k in group v
-iff groups[v,k] == 1.}
+\item{groups}{Binary V by K matrix determining group membership: Task k in
+group v iff groups[v,k] == 1.}
 
 \item{weights}{V dimensional vector with group weights.}
 
 \item{lambda}{Regularization parameter.}
 
+\item{max.iter}{(Optional) Maximum number of iterations.}
+
+\item{epsilon}{(Optional) Desired accuracy. If error change drops below
+epsilon, the algorithm terminates.}
+
 \item{mu}{(Optional) Determines accuracy of smooth approximation to the group
 penalty term. If NULL, mu will be determined based on desired accuracy
-epsilon.}
+epsilon. However, this may lead to numerical issues and it is thus
+recommended to tune mu by hand.}
 
 \item{mu.adapt}{(Optional) Multiply mu with a factor of mu.adapt every
 iteration. Default is no adaptation (mu.adapt = 1).}
@@ -49,22 +55,19 @@ regression coefficients.}
 = 1: Print summary at the end of the optimization. verbose = 2: Print
 progress during optimization.}
 
-\item{standardize}{(Optional) Standardize data (default is TRUE).}
-
-\item{(Optional)}{max.iter Maximum number of iterations.}
-
-\item{(Optional)}{epsilon Desired accuracy. If error change drops below
-epsilon, the algorithm terminates.}
+\item{standardize}{(Optional) Default is TRUE. Standardize data (using R
+function scale()). Coefficients will be returned on original scale. Note
+that standardization will NOT be used if XTX and XTY are supplied.}
 }
 \value{
 List containing
-  \item{lambda}{Regularization parameter used.}
-  \item{weights}{Node weights used.}
-  \item{B}{Final estimate of the regression coefficients.}
-  \item{intercept}{Final estimate of the intercept terms.}
-  \item{obj}{Final objective value.}
-  \item{early.termination}{Boolean indicating whether the algorithm exceeded
-  max.iter iterations.}
+\item{lambda}{Regularization parameter used.}
+\item{weights}{Node weights used.}
+\item{B}{Final estimate of the regression coefficients.}
+\item{intercept}{Final estimate of the intercept terms.}
+\item{obj}{Final objective value.}
+\item{early.termination}{Boolean indicating whether the algorithm exceeded
+max.iter iterations.}
 }
 \description{
 Fit a tree-guided group lasso model via smoothed proximal gradient descent
