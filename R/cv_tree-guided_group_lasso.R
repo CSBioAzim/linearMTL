@@ -16,6 +16,12 @@
 #' @param lambda.vec Vector of regularization parameters.
 #' @param num.folds Number of folds.
 #' @param num.threads Number of threads to use.
+#' @param verbose (Optional) Integer in {-2, -1, 0,1,2}. verbose = -2: No
+#'   output. verbose = -1: Display total elapsed time. verbose = 0: Display
+#'   elapsed time for every parameter. verbose = 1: Print summary at the end of
+#'   the optimization. verbose = 2: Print progress during optimization.
+#' @param standardize (Optional) Default is TRUE. Standardize data (using R
+#'   function scale()). Coefficients will be returned on original scale.
 #' @param ... Additional parameters passed to
 #'   \code{\link{TreeGuidedGroupLasso}}.
 #'
@@ -29,7 +35,7 @@
 #' @export
 RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
                                      groups, weights.matrix, lambda.vec, num.folds = 10,
-                                     num.threads = 1, ...) {
+                                     num.threads = 1, verbose = -1, standardize = TRUE, ...) {
   # initialization and error checking
   if (is.null(X) & (length(task.specific.features) == 0)) {
     stop("No input data supplied.")
@@ -68,8 +74,19 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
   # divide data into folds
   cv.folds <- split(sample(N), 1:num.folds)
 
+  # build parameter grid
+  parameter.grid <- cbind(lambda.vec, matrix(rep(weights.matrix, each = length(lambda.vec)),
+                                             ncol = ncol(weights.matrix)))
+
+  if (verbose > -2) {
+    print(sprintf("Running group crossvalidation for %d parameter settings ... ", nrow(parameter.grid)))
+  }
+  cv.start.time <- Sys.time()
+
   # precompute matrices to save computation time
-  print("Computing immutable matrices ... ")
+  if (verbose > -1) {
+    print("Computing immutable matrices ... ")
+  }
   precomp.start.time <- Sys.time()
 
   XTX.global <- list()
@@ -83,7 +100,7 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
     # prepare matrices
     pm.res <- PrepareMatrices(Y = Y[-ids, ], X = X[-ids, ],
                               task.specific.features = fold.ex.task.specific.features,
-                              standardize = TRUE)
+                              standardize = standardize)
     return(pm.res)
   }
 
@@ -105,9 +122,8 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
     }
   }
 
-  # build parameter grid
-  parameter.grid <- cbind(lambda.vec, matrix(rep(weights.matrix, each = length(lambda.vec)),
-                                             ncol = ncol(weights.matrix)))
+  precomp.end.time <- Sys.time()
+  precomp.time <- as.numeric(precomp.end.time - precomp.start.time, units = "mins")
 
   RunParameter <- function (ind) {
     # Run crossvalidation on given row of parameter grid.
@@ -119,12 +135,14 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
     #   List containing hold-out error for given parameter set and
     #   whether or not the optimization procedure ended prematurely.
 
-    print(sprintf('Crossvalidation for parameter set: %d', ind))
+    if (verbose > -1) {
+      print(sprintf('Crossvalidation for parameter set: %d', ind))
+    }
 
     lambda <- parameter.grid[ind, 1]
     weights <- parameter.grid[ind, 2:ncol(parameter.grid)]
 
-    error <- 0
+    error <- rep(0, K)
     early.termination <- TRUE
     param.start.time <- Sys.time()
     for (i in 1:length (cv.folds)) {
@@ -144,23 +162,25 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
                                           Y = Y[-fold,,drop = FALSE],
                                           groups = groups, weights = weights, lambda = lambda,
                                           XTX = XTX.global[[i]], XTY = XTY.global[[i]],
-                                          MSE.Lipschitz = MSE.Lipschitz.list[[i]], ...)
+                                          MSE.Lipschitz = MSE.Lipschitz.list[[i]],
+                                          verbose = max(verbose, 0), standardize = FALSE, ...)
       early.termination <- early.termination & fold.result$early.termination
-      error <- error + MTComputeError(LMTL.model = fold.result, Y = Y[fold, , drop = FALSE],
-                                      X = X[fold, ], task.specific.features = fold.task.specific.features)
+      error <- error + MTComputeError(LMTL.model = fold.result,
+                                      Y = Y[fold, , drop = FALSE],
+                                      X = X[fold, ], task.specific.features = fold.task.specific.features,
+                                      aggregate.tasks = FALSE)
     }
 
     # compute hold-out error
     error <- error / num.folds
 
     param.end.time <- Sys.time()
-    print(sprintf('Minutes to run parameter set %d: %0.1f', ind, as.numeric(param.end.time-param.start.time, units = "mins")))
+    if (verbose > -1) {
+      print(sprintf('Minutes to run parameter set %d: %0.1f', ind, as.numeric(param.end.time-param.start.time, units = "mins")))
+    }
 
     return(list(lambda = lambda, weights = weights, error = error, early.termination = early.termination))
   }
-
-  print(sprintf("Running group crossvalidation on %d parameter settings ... ", nrow(parameter.grid)))
-  cv.start.time <- Sys.time()
 
   # run cv on all parameter settings
   doMC::registerDoMC(num.threads)
@@ -171,24 +191,31 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
   weight.names <- 1:length(cv.results[[1]]$weights)
   cv.results <- lapply(cv.results, unlist)
   cv.results <- data.frame(t(sapply(cv.results, c)))
-  colnames(cv.results) <- c("lambda", weight.names, "cv.error", "early.termination")
+  colnames(cv.results) <- c("lambda", weight.names, paste("Task", 1:K, sep = ""), "early.termination")
 
   cv.end.time <- Sys.time()
-  print(sprintf("Minutes to run crossvalidation : %0.1f", as.numeric(cv.end.time - cv.start.time, units = "mins")))
+  cv.time <- as.numeric(cv.end.time - cv.start.time, units = "mins")
 
-  print("Training model on full data set ... ")
+  if (verbose > -1) {
+    print("Training model on full data set ... ")
+  }
   train.start.time <- Sys.time()
 
   # identify best parameters
-  min.idx <- which.min(cv.results$cv.error)
+  min.idx <- which.min(rowMeans(cv.results[, paste("Task", 1:K, sep = "")]))
   lambda <- parameter.grid[min.idx, 1]
   weights <- parameter.grid[min.idx, 2:ncol(parameter.grid)]
 
   # retrain model
   full.model <- TreeGuidedGroupLasso(X = X, task.specific.features = task.specific.features,
-                                     Y = Y, groups = groups, weights = weights, lambda = lambda, ...)
+                                     Y = Y, groups = groups, weights = weights, lambda = lambda,
+                                     verbose = max(verbose, 0), standardize = standardize, ...)
   train.end.time <- Sys.time()
-  print(sprintf("Minutes to run train full model : %0.1f", as.numeric(train.end.time - train.start.time, units = "mins")))
+  train.time <- as.numeric(train.end.time - train.start.time, units = "mins")
+  if (verbose > -2) {
+    print(sprintf("Minutes to run CV (precomp. + CV + final model): %0.1f + %0.1f + %0.1f = %0.1f.",
+                  precomp.time, cv.time, train.time, precomp.time + cv.time + train.time))
+  }
 
   return(list(cv.results = cv.results, full.model = full.model))
 }

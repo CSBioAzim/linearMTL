@@ -8,7 +8,7 @@
 #' @importFrom lattice levelplot
 #' @importFrom grDevices gray
 #' @export
-TestLinearMTL <- function(method = "group") {
+TestLinearMTL <- function(method = "all") {
   set.seed(12345)
   # number of data points
   N <- 150
@@ -56,14 +56,15 @@ TestLinearMTL <- function(method = "group") {
                                     lambda.vec = lambda.vec,
                                     epsilon = 1e-4,
                                     mu = 1e-5, mu.adapt = 0.99,
-                                    verbose = 0)
+                                    verbose = 0, standardize = TRUE)
     tggl.model <- tggl$full.model
   }
   if ((method == "tbt") | (method == "all")) {
     lambda.vec = 10^seq(-5, 2, length.out = 20)
     tbt <- RunTBTCrossvalidation(X = Xtrain,
                                  Y = Ytrain,
-                                 lambda.vec = lambda.vec)
+                                 lambda.vec = lambda.vec,
+                                 standardize = TRUE)
     tbt.model <- tbt$full.model
   }
 

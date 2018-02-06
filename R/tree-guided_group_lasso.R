@@ -10,16 +10,17 @@
 #'   columns are features). List has to be ordered according to the columns of
 #'   Y.
 #' @param Y N by K output matrix for every task.
-#' @param groups V by K matrix determining group membership: Task k in group v
-#'   iff groups[v,k] == 1.
+#' @param groups Binary V by K matrix determining group membership: Task k in
+#'   group v iff groups[v,k] == 1.
 #' @param weights V dimensional vector with group weights.
 #' @param lambda Regularization parameter.
-#' @param (Optional) max.iter Maximum number of iterations.
-#' @param (Optional) epsilon Desired accuracy. If error change drops below
+#' @param max.iter (Optional) Maximum number of iterations.
+#' @param epsilon (Optional) Desired accuracy. If error change drops below
 #'   epsilon, the algorithm terminates.
 #' @param mu (Optional) Determines accuracy of smooth approximation to the group
 #'   penalty term. If NULL, mu will be determined based on desired accuracy
-#'   epsilon.
+#'   epsilon. However, this may lead to numerical issues and it is thus
+#'   recommended to tune mu by hand.
 #' @param mu.adapt (Optional) Multiply mu with a factor of mu.adapt every
 #'   iteration. Default is no adaptation (mu.adapt = 1).
 #' @param XTX (Optional) Precomputed matrices t(X)*X as for example produced by
@@ -33,16 +34,18 @@
 #' @param verbose (Optional) Integer in {0,1,2}. verbose = 0: No output. verbose
 #'   = 1: Print summary at the end of the optimization. verbose = 2: Print
 #'   progress during optimization.
-#' @param standardize (Optional) Standardize data (default is TRUE).
+#' @param standardize (Optional) Default is TRUE. Standardize data (using R
+#'   function scale()). Coefficients will be returned on original scale. Note
+#'   that standardization will NOT be used if XTX and XTY are supplied.
 #'
 #' @return List containing
-#'   \item{lambda}{Regularization parameter used.}
-#'   \item{weights}{Node weights used.}
-#'   \item{B}{Final estimate of the regression coefficients.}
-#'   \item{intercept}{Final estimate of the intercept terms.}
-#'   \item{obj}{Final objective value.}
-#'   \item{early.termination}{Boolean indicating whether the algorithm exceeded
-#'   max.iter iterations.}
+#' \item{lambda}{Regularization parameter used.}
+#' \item{weights}{Node weights used.}
+#' \item{B}{Final estimate of the regression coefficients.}
+#' \item{intercept}{Final estimate of the intercept terms.}
+#' \item{obj}{Final objective value.}
+#' \item{early.termination}{Boolean indicating whether the algorithm exceeded
+#' max.iter iterations.}
 #'
 #' @seealso \code{\link{RunGroupCrossvalidation}}
 #' @export
@@ -54,12 +57,21 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
                                   init.B = NULL,
                                   verbose = 1, standardize = TRUE) {
 
-  # initialization and error checking
+  # This implementation minimizes the objective
+  #   1/(2N)||Y - XB - intercept|| + lambda*Omega(B)
+  # where Omega denotes the tree-guided group penalty.
+  # Variable names are mainly based on the original paper.
+
+  ##################
+  # error checking #
+  ##################
+
+  # check if any input data was supplied
   if (is.null(X) & (length(task.specific.features) == 0)) {
     stop("No input data supplied.")
   }
 
-  # check for shared features
+  # check dimensions of shared features
   J1 <- 0
   if (!is.null(X)) {
     if (nrow(X) != nrow(Y)) {
@@ -68,15 +80,18 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
     J1 <- ncol(X)
   }
 
-  # check for task specific features
+  # check dimensions of task specific features
   J2 <- 0
   if (length(task.specific.features) > 0) {
-    if (nrow(task.specific.features[[1]]) != nrow(Y)) {
-      stop("Task specific feature matrices and Y must have the same number of rows!")
+    for (task.matrix in task.specific.features) {
+      if (nrow(task.matrix) != nrow(Y)) {
+        stop("Task specific feature matrices and Y must have the same number of rows!")
+      }
     }
     J2 <- ncol(task.specific.features[[1]])
   }
 
+  # check dimensions of groups and weights
   if (ncol(Y) != ncol(groups)) {
     stop("Y and groups must have the same number of columns!")
   }
@@ -84,6 +99,7 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
     stop("Length of weights has to equal number of rows of groups!")
   }
 
+  # check for precomputed matrices
   if (!is.null(XTX) | !is.null(XTY)) {
     if (xor(!is.null(XTX), !is.null(XTY))) {
       stop("When using immutables, both XTX and XTY need to be specified!")
@@ -93,58 +109,57 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
     use.cached.immutables <- FALSE
   }
 
+  if (standardize & use.cached.immutables) {
+    print("Warning: Standardization (standardize=TRUE) not available when immutables are supplied!")
+    standardize = FALSE
+  }
+
   # input / output dimensions
   N <- nrow(Y)
   K <- ncol(Y)
   J <- J1 + J2
 
-  # isolate singleton groups
+  ####################################################
+  # precompute and standardize matrices if necessary #
+  ####################################################
+
+  if (!use.cached.immutables) {
+    mats <- PrepareMatrices(Y = Y, X = X,
+                            task.specific.features = task.specific.features,
+                            standardize = standardize)
+    XTX <- mats$XTX
+    XTY <- mats$XTY
+    X <- mats$X
+    Y <- mats$Y
+    task.specific.features <- mats$tsf
+
+    # used to compute intercept
+    X.means <- mats$sample.moments$X.mus
+    tsf.means <- mats$sample.moments$tsf.mus
+    Y.means <- mats$sample.moments$Y.mus
+  } else {
+    # determine means from scratch
+    X.means <- colMeans(X)
+    tsf.means <- lapply(task.specific.features, FUN = function(A){apply(A, 2, mean)})
+    Y.means <- colMeans(Y)
+  }
+
+  ###################
+  # initializations #
+  ###################
+
+  # determine groups consisting of only one task
   singleton.groups <- rowSums(groups) == 1
   singleton.tasks <- apply(groups[singleton.groups,], 1, FUN=function(x){which(x != 0)})
   singleton.weights <- rep(0, K)
   singleton.weights[singleton.tasks] <- weights[singleton.groups]
 
-  # retain inner nodes
+  # only keep inner nodes in groups matrix and weights
   groups <- groups[!singleton.groups, , drop = FALSE]
   weights <- weights[!singleton.groups]
   V <- nrow(groups) # number of inner nodes
 
-  # standardize data:
-  # remember means and standard deviations so that
-  # coefficients on original scale can be recovered
-  X.sds <- NULL
-  X.mus <- NULL
-  tsf.sds <- list()
-  tsf.mus <- list()
-  Y.sds <- NULL
-  Y.mus <- NULL
-  if (standardize) {
-    if (J1 > 0) {
-      X.sds <- apply(X, 2, sd)
-      X.mus <- apply(X, 2, mean)
-      X <- scale(X)
-    }
-    if (J2 > 0) {
-      tsf.sds <- lapply(task.specific.features, FUN = function(A){apply(A, 2, sd)})
-      tsf.mus <- lapply(task.specific.features, FUN = function(A){apply(A, 2, mean)})
-      task.specific.features <- lapply(task.specific.features, scale)
-    }
-    Y.mus <- apply(Y, 2, mean)
-    Y.sds <- apply(Y, 2, sd)
-    Y <- scale(Y)
-  }
-
-  # precompute matrices if necessary
-  if (!use.cached.immutables) {
-    # variables are already scaled (if standardize=TRUE), do not standardize again
-    mats <- PrepareMatrices(Y = Y, X = X, task.specific.features = task.specific.features,
-                            standardize = FALSE)
-    XTX <- mats$XTX
-    XTY <- mats$XTY
-  }
-
-
-  # build C
+  # build matrix C
   group.sizes <- rowSums(groups)
   group.sums <- sum(groups)
   group.cum.sizes <- cumsum(group.sizes)
@@ -160,21 +175,24 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
   C[cbind(1:group.sums, J.idx)] <- W.entries
   C <- C * lambda
 
-  # set mu
-  D <- J * V / 2
+  # compute squared norm of C
+  C.norm.squared <- t(tcrossprod(rep(1, K), weights)) * groups;
+  C.norm.squared <- lambda^2 * max(colSums(C.norm.squared^2));
+
+  # compute mu if necessary
   if (is.null(mu)) {
+    D <- J * V / 2
     mu <- epsilon / (2*D)
   }
 
   # compute Lipschitz constant
-  C.norm.squared <- t(tcrossprod(rep(1, K), weights)) * groups;
-  C.norm.squared <- lambda^2 * max(colSums(C.norm.squared^2));
-
   if (is.null(MSE.Lipschitz)) {
     if (J2 > 0) {
       # too expensive:
-      #L1 <- max(unlist(lapply(XTX, FUN = function(M) {max(eigen(M)$values)})))
-      # instead just consider first matrix
+      # L1 <- max(unlist(lapply(XTX, FUN = function(M){max(eigen(M)$values)})))
+      # instead just consider first matrix:
+
+      # divide by N because of 1/(2N) factor in the objective
       L1 <- max(eigen(XTX[[1]])$values) / N
     } else {
       L1 <- max(eigen(XTX)$values) / N
@@ -182,8 +200,7 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
   } else {
     L1 <- MSE.Lipschitz / N
   }
-
-  # Lipschitz constant
+  # Lipschitz constant of the smooth part of the objective function
   L <- L1 + C.norm.squared / mu
 
   # initialize variables
@@ -192,40 +209,73 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
   } else {
     B <- init.B
   }
+  if (standardize) {
+    intercept <- rep(0, K)
+  } else {
+    intercept <- ComputeIntercept(B, X.means, tsf.means, Y.means)
+  }
+  intercept.new <- intercept
+
   W <- B
   iter <- 0
   theta <- 1
   delta <- epsilon + 1
-  obj.old <- ComputeObjective(Y = Y, B = B, X = X,
+
+  # compute initial objective function
+  obj.old <- ComputeObjective(Y = Y, B = B, intercept = intercept, X = X,
                               task.specific.features = task.specific.features,
                               C = C, group.ranges = group.ranges, lambda = lambda,
                               singleton.weights = singleton.weights)
   dh <- matrix(0, nrow = J, ncol = K)
   start.time <- Sys.time();
+
+  ################################################
+  # optimization using proximal gradient descent #
+  ################################################
   while (iter < max.iter & delta > epsilon) {
-    # optimize
+    # apply shrinkage operator
     A <- RcppShrink(C %*% t(W) / mu, group.ranges)
+
+    # gradient of the smooth approximation to the nonsmooth penalty
     df <- t(A) %*% C
+
+    # compute gradient of the smooth part of the objective
     if (length(task.specific.features) > 0) {
       # task specific features
       for (k in 1:K) {
         dh[, k] <- 1/N * (XTX[[k]] %*% W[, k] - XTY[, k])
+        if (!standardize) {
+          dh[, k] <- dh[, k] + c(X.means, tsf.means[[k]]) * intercept[k]
+        }
       }
-      dh <- dh + df
     } else {
       # no task specific features
-      dh <- 1/N * (XTX %*% W - XTY) + df
+      dh <- 1/N * (XTX %*% W - XTY)
+      if (!standardize) {
+        dh <- dh + as.matrix(X.means) %*% intercept
+      }
     }
+    dh <- dh + df
+
+    # Q corresponds to the matrix V in the original paper
     Q <- W - 1/L * dh
+
+    # apply soft-thresholding
     B.new  <- sign(Q) * pmax(0, sweep(abs(Q), 2, lambda/L * singleton.weights))
+
+    # compute new intercept
+    if (!standardize) {
+      intercept.new <- ComputeIntercept(B.new, X.means, tsf.means, Y.means)
+    }
     theta.new <- 2 / (iter + 3)
     W <- B.new + (1 - theta) / theta * theta.new * (B.new - B)
 
     # compute delta
-    delta <- sqrt(sum((B.new - B)^2)) / max(sqrt(sum(B.new^2)), 1)
+    delta <- sqrt(sum((B.new - B)^2) + sum((intercept.new - intercept)^2))
+    delta <- delta / max(sqrt(sum(B.new^2) + sum(intercept.new^2)), 1)
     if (((iter %% 100) == 0) & (iter > 0)) {
       # compute new objective
-      obj <- ComputeObjective(Y = Y, B = B.new, X = X,
+      obj <- ComputeObjective(Y = Y, B = B.new, intercept = intercept.new, X = X,
                               task.specific.features = task.specific.features,
                               C = C, group.ranges = group.ranges, lambda = lambda,
                               singleton.weights = singleton.weights)
@@ -241,38 +291,36 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
     L <- L1 + C.norm.squared / mu
 
     B <- B.new
+    intercept <- intercept.new
     theta <- theta.new
     iter <- iter + 1
   }
   end.time <- Sys.time()
 
-  obj <- ComputeObjective(Y = Y, B = B.new, X = X,
+  # compute new objective
+  obj <- ComputeObjective(Y = Y, B = B, intercept = intercept, X = X,
                           task.specific.features = task.specific.features,
                           C = C, group.ranges = group.ranges, lambda = lambda,
                           singleton.weights = singleton.weights)
   if (verbose >= 1) {
-    print(sprintf("Total: Iter: %d, Obj: %f, Time: %f", iter, obj, as.numeric(end.time - start.time, units = "secs")))
+    print(sprintf("Total: Iter: %d, Obj: %f, Time: %f", iter, obj,
+                  as.numeric(end.time - start.time, units = "secs")))
   }
 
   early.termination <- iter > max.iter
-  if (early.termination) {
+  if (early.termination & (verbose > 1)) {
     print(sprintf("Warning: Reached maximum number of iterations (%d).", max.iter))
   }
 
-  intercept <- rep(0, K)
-  # recover coefficients on original scale and compute intercept
   if (standardize) {
-    B.transformed <- ComputeInverseArtesi(B,
-                                          Y.sds = Y.sds, Y.mus = Y.mus,
-                                          X.sds = X.sds, X.mus = X.mus,
-                                          tsf.sds = tsf.sds, tsf.mus = tsf.mus)
+    # recover coefficients on original scale and compute intercept
+    B.transformed <- ComputeInverseArtesi(B, mats$sample.moments)
     B <- B.transformed[2:nrow(B.transformed), ]
     intercept <- B.transformed[1, ]
   }
 
-  # TODO compute intercept for standardize = FALSE
-
-  return(list(lambda = lambda, weights = weights, B = B, intercept = intercept,
+  return(list(lambda = lambda, weights = weights,
+              B = B, intercept = intercept,
               obj = obj, early.termination = early.termination))
 }
 
@@ -304,41 +352,62 @@ CalculateInnerGroupPenalty <- function(A, group.ranges) {
   return(s)
 }
 
-ComputeObjective <- function(Y, B, X = NULL, task.specific.features = list(),
+ComputeObjective <- function(Y, B, intercept, X = NULL, task.specific.features = list(),
                              C, group.ranges, lambda, singleton.weights) {
-  # Compute the optimization objective
+  # Computes the optimization objective.
   N <- nrow(Y)
-  obj <- 1/(2*N) * MTComputeError(LMTL.model = list(B = B, intercept = rep(0, ncol(B))),
+  # compute MSE
+  obj <- 1/(2*N) * MTComputeError(LMTL.model = list(B = B, intercept = intercept),
                                   Y = Y, X = X,
                                   task.specific.features = task.specific.features,
                                   normalize = FALSE)
+  # compute penalty for inner nodes
   obj <- obj + CalculateInnerGroupPenalty(C %*% t(B), group.ranges)
+  # compute penalty for leaf nodes (singletons)
   obj <- obj + sum(sweep(abs(B), 2, lambda * singleton.weights, FUN = "*"))
+
   return(obj)
 }
 
-ComputeInverseArtesi <- function(B, Y.sds, Y.mus, X.sds, X.mus, tsf.sds, tsf.mus) {
+ComputeIntercept <- function(B, X.means, tsf.means, Y.means) {
+  # Compute the intercept term for the current B.
+  K <- length(Y.means)
+  if (length(tsf.means) == 0) {
+    intercept <- Y.means - X.means %*% B
+  } else {
+    intercept <- Y.means
+    for (k in 1:K) {
+      input.means <- c(X.means, tsf.means[[k]])
+      intercept[k] <- intercept[k] - input.means %*% B[, k]
+    }
+  }
+  return(as.vector(intercept))
+}
+
+ComputeInverseArtesi <- function(B, sample.moments) {
   # Compute inverse artesi transformation to obtain coefficients for
-  # variables on the original scale
+  # variables on the original scale.
   B.transformed <- matrix(0, nrow = nrow(B) + 1, ncol = ncol(B))
   K <- ncol(B)
 
-  if (is.null(Y.sds)) {
-    Y.sds <- rep(1, length(Y.sds))
+  if (is.null(sample.moments$Y.sds)) {
+    Y.sds <- rep(1, length(sample.moments$Y.sds))
   }
 
   for (k in 1:K) {
-    input.sds <- X.sds
-    input.mus <- X.mus
-    if (length(tsf.sds) > 0) {
-      input.sds <- c(input.sds, tsf.sds[[k]])
-      input.mus <- c(input.mus, tsf.mus[[k]])
+    input.sds <- sample.moments$X.sds
+    input.mus <- sample.moments$X.mus
+    if (length(sample.moments$tsf.sds) > 0) {
+      input.sds <- c(input.sds, sample.moments$tsf.sds[[k]])
+      input.mus <- c(input.mus, sample.moments$tsf.mus[[k]])
     }
-    B.transformed[2:nrow(B.transformed), k] <- Y.sds[k] * B[, k] / input.sds
-    B.transformed[1, k] <-  - Y.sds[k] * sum(B[, k] * input.mus / input.sds) + Y.mus[k]
+    B.transformed[2:nrow(B.transformed), k] <- sample.moments$Y.sds[k] * B[, k] / input.sds
+    B.transformed[1, k] <-  - sample.moments$Y.sds[k] * sum(B[, k] * input.mus / input.sds) + sample.moments$Y.mus[k]
   }
   return(B.transformed)
 }
+
+
 
 
 #' Construct tree for \code{\link{TreeGuidedGroupLasso}} using hierarchical
@@ -404,13 +473,14 @@ FindLeaves <- function(clusters, i, K, leaves) {
 
 #' Compute node weights using scheme from Kim et al [2010].
 #'
-#' @param groups V by K matrix determining group membership: Task k in group v iff groups[v,k] == 1.
-#' @param s V dimensional vector with weights. Entries for singleton groups will be ignored.
+#' @param groups V by K matrix determining group membership: Task k in group v
+#'   iff groups[v,k] == 1.
+#' @param s V dimensional vector with weights. Entries for singleton groups will
+#'   be ignored.
 #'
 #' @return Vector containing node weights.
 #'
-#' @seealso \code{\link{TreeGuidedGroupLasso}},
-#'   \code{\link{BuildTreeHC}}.
+#' @seealso \code{\link{TreeGuidedGroupLasso}}, \code{\link{BuildTreeHC}}.
 #' @export
 ComputeGroupWeights <- function(groups, s) {
 
