@@ -98,7 +98,6 @@ TGGLMixtureModelSelection <- function(X = NULL, task.specific.features = list(),
       print(sprintf('Param [M = %d, lambda = %.e]: BIC: %.3f, Num of Param. : %.2f, L: %3f.',
                     M, lambda, BIC, num.of.parameters, tggl.mix$likelihood))
     }
-    #print(sprintf("Total param: %d, TGGL param: %d", num.of.parameters, tggl.param))
     return(list(model = top.model, BIC = BIC))
   }
 

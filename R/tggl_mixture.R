@@ -87,7 +87,7 @@ TGGLMixture <- function(X = NULL, task.specific.features = list(), Y, M,
 
     pen.negloglik <- 0
     post.old <- tau
-    if (sample.data) {
+    if (sample.data & (M > 1)) {
       # assign data point to one of the M components
       # according to its posterior distribution
       tau <- t(apply(tau, 1, FUN=function(x){rmultinom(1,1,x)}))
