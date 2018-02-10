@@ -172,6 +172,7 @@ MTComputeMeanCorrelation <- function (LMTL.model, Y, X = NULL,
 #'   (where columns are features). List has to be ordered according to the
 #'   columns of Y.
 #' @param standardize Standardize data (default is TRUE).
+#' @param row.weights Observation weights.
 #'
 #' @return List containing Y, X, task.specific.features, XTX and XTY. Also
 #'   return means and standard deviations for Y and all inputs.
@@ -179,7 +180,7 @@ MTComputeMeanCorrelation <- function (LMTL.model, Y, X = NULL,
 #' @seealso \code{\link{TreeGuidedGroupLasso}}, \code{\link{RunGroupCrossvalidation}}.
 #' @export
 PrepareMatrices <- function(Y, X = NULL, task.specific.features = list(),
-                            standardize = TRUE) {
+                            standardize = TRUE, row.weights = NULL) {
 
   if (is.null(X) & (length(task.specific.features) == 0)) {
     stop("No input data supplied.")
@@ -206,11 +207,17 @@ PrepareMatrices <- function(Y, X = NULL, task.specific.features = list(),
   Y.sds <- NULL
   Y.mus <- NULL
 
+  if (is.null(row.weights)) {
+    row.weights <- rep(1, N)
+  }
+
   if (J1 > 0) {
+    X <- X * row.weights
     X.sds <- apply(X, 2, sd)
     X.mus <- apply(X, 2, mean)
   }
   if (J2 > 0) {
+    task.specific.features <- lapply(task.specific.features, FUN = function(A){A * row.weights})
     tsf.sds <- lapply(task.specific.features, FUN = function(A){apply(A, 2, sd)})
     tsf.mus <- lapply(task.specific.features, FUN = function(A){apply(A, 2, mean)})
   }
