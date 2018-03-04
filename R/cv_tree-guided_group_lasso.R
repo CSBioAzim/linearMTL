@@ -20,8 +20,10 @@
 #'   output. verbose = -1: Display total elapsed time. verbose = 0: Display
 #'   elapsed time for every parameter. verbose = 1: Print summary at the end of
 #'   the optimization. verbose = 2: Print progress during optimization.
+#' @param row.weights (Optional) Use weighted MSE.
 #' @param standardize (Optional) Default is TRUE. Standardize data (using R
 #'   function scale()). Coefficients will be returned on original scale.
+#' @param fit.intercept (Optional) Default is TRUE. Include intercept.
 #' @param ... Additional parameters passed to
 #'   \code{\link{TreeGuidedGroupLasso}}.
 #'
@@ -35,7 +37,8 @@
 #' @export
 RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
                                      groups, weights.matrix, lambda.vec, num.folds = 10,
-                                     num.threads = 1, verbose = -1, standardize = TRUE, ...) {
+                                     num.threads = 1, verbose = -1, row.weights = NULL,
+                                     standardize = TRUE, fit.intercept = TRUE, ...) {
   # initialization and error checking
   if (is.null(X) & (length(task.specific.features) == 0)) {
     stop("No input data supplied.")
@@ -71,6 +74,10 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
   K <- ncol(Y)
   J <- J1 + J2
 
+  # set input weights
+  if (is.null(row.weights)) {
+    row.weights <- rep(1, N)
+  }
   # divide data into folds
   cv.folds <- split(sample(N), 1:num.folds)
 
@@ -83,42 +90,57 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
   }
   cv.start.time <- Sys.time()
 
+  if (!is.null(row.weights)) {
+    # apply row weights
+    row.weights.sqrt <- sqrt(row.weights)
+    if (J1 > 0) {
+      X <- X * row.weights.sqrt
+    }
+    if (J2 > 0) {
+      task.specific.features <- lapply(task.specific.features,
+                                       FUN = function(A) {A * row.weights.sqrt})
+    }
+    Y <- Y * row.weights.sqrt
+  } else {
+    row.weights.sqrt <- rep(1, N)
+  }
+
+  if (standardize) {
+    return.inputs <- TRUE
+  } else {
+    return.inputs <- FALSE
+  }
+
+  PrepareMatricesForFold <- function(idx) {
+    ids <- cv.folds[[idx]]
+    # exclude indices for this fold
+    fold.ex.task.specific.features <- lapply(task.specific.features, function (x){x[-ids, ]})
+    # prepare matrices
+    pm.res <- PrepareMatrices(Y = Y[-ids, , drop = FALSE], X = X[-ids, ],
+                              task.specific.features = fold.ex.task.specific.features,
+                              standardize = standardize,
+                              row.weights = NULL,
+                              return.inputs = return.inputs)
+    return(pm.res)
+  }
+
   # precompute matrices to save computation time
   if (verbose > -1) {
     print("Computing immutable matrices ... ")
   }
   precomp.start.time <- Sys.time()
-
-  XTX.global <- list()
-  XTY.global <- list()
   doMC::registerDoMC(num.threads)
-
-  PrepareMatricesForFold <- function(idx) {
-    ids <- cv.folds[[idx]]
-    # exclude indices for this fold
-    fold.ex.task.specific.features <- lapply(task.specific.features, function (x) {x[-ids, ]} )
-    # prepare matrices
-    pm.res <- PrepareMatrices(Y = Y[-ids, ], X = X[-ids, ],
-                              task.specific.features = fold.ex.task.specific.features,
-                              standardize = standardize)
-    return(pm.res)
-  }
-
-  mats <- foreach(i = seq_along(cv.folds)) %dopar% PrepareMatricesForFold(i)
-  for (i in seq_along(mats)) {
-    XTX.global[[i]] <- mats[[i]]$XTX
-    XTY.global[[i]] <- mats[[i]]$XTY
-  }
+  cached.mats <- foreach(i = seq_along(cv.folds)) %dopar% PrepareMatricesForFold(i)
 
   MSE.Lipschitz.list <- list()
-  for (i in seq_along(XTX.global)) {
+  for (i in seq_along(cached.mats)) {
     if (J2 > 0) {
       # too expensive:
       #L1 <- max(unlist(lapply(XTX, FUN = function(M) {max(eigen(M)$values)})))
       # instead just consider first matrix
-      MSE.Lipschitz.list[[i]] <- max(eigen(XTX.global[[i]][[1]])$values)
+      MSE.Lipschitz.list[[i]] <- max(eigen(cached.mats[[i]]$XTX[[1]])$values)
     } else {
-      MSE.Lipschitz.list[[i]] <- max(eigen(XTX.global[[i]])$values)
+      MSE.Lipschitz.list[[i]] <- max(eigen(cached.mats[[i]]$XTX)$values)
     }
   }
 
@@ -148,26 +170,34 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
     for (i in 1:length (cv.folds)) {
       fold <- cv.folds[[i]]
       # restrict to subset of the data
-      if (J2 > 0) {
-        fold.ex.task.specific.features <- lapply(task.specific.features, function (x) {x[-fold, ]} )
-        fold.task.specific.features <- lapply(task.specific.features, function (x) {x[fold, ]} )
+      if (standardize) {
+        # use scaled matrices
+        fold.ex.X <- cached.mats[[i]]$X
+        fold.ex.task.specific.features <- cached.mats[[i]]$task.specific.features
+        fold.ex.Y <- cached.mats[[i]]$Y
       } else {
-        fold.ex.task.specific.features <- list()
-        fold.task.specific.features <- list()
+        fold.ex.X <- X[-fold, ]
+        fold.ex.task.specific.features <- lapply(task.specific.features, function(x){x[-fold, ]})
+        fold.ex.Y <- Y[-fold, , drop = FALSE]
       }
 
       # train model
-      fold.result <- TreeGuidedGroupLasso(X = X[-fold, ],
+      fold.result <- TreeGuidedGroupLasso(X = fold.ex.X,
                                           task.specific.features = fold.ex.task.specific.features,
-                                          Y = Y[-fold,,drop = FALSE],
+                                          Y = fold.ex.Y,
                                           groups = groups, weights = weights, lambda = lambda,
-                                          XTX = XTX.global[[i]], XTY = XTY.global[[i]],
+                                          cached.mats = cached.mats[[i]],
                                           MSE.Lipschitz = MSE.Lipschitz.list[[i]],
-                                          verbose = max(verbose, 0), standardize = FALSE, ...)
+                                          verbose = max(verbose, 0),
+                                          standardize = standardize,
+                                          fit.intercept = fit.intercept,
+                                          row.weights = row.weights, ...)
       early.termination <- early.termination & fold.result$early.termination
+
+      fold.task.specific.features <- lapply(task.specific.features, function(x){x[fold, ]})
       error <- error + MTComputeError(LMTL.model = fold.result,
-                                      Y = Y[fold, , drop = FALSE],
-                                      X = X[fold, ], task.specific.features = fold.task.specific.features,
+                                      Y = Y[fold, , drop = FALSE], X = X[fold, ],
+                                      task.specific.features = fold.task.specific.features,
                                       aggregate.tasks = FALSE)
     }
 
@@ -176,10 +206,12 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
 
     param.end.time <- Sys.time()
     if (verbose > -1) {
-      print(sprintf('Minutes to run parameter set %d: %0.1f', ind, as.numeric(param.end.time-param.start.time, units = "mins")))
+      print(sprintf('Minutes to run parameter set %d: %0.1f',
+                    ind, as.numeric(param.end.time-param.start.time, units = "mins")))
     }
 
-    return(list(lambda = lambda, weights = weights, error = error, early.termination = early.termination))
+    return(list(lambda = lambda, weights = weights,
+                error = error, early.termination = early.termination))
   }
 
   # run cv on all parameter settings
@@ -209,7 +241,10 @@ RunGroupCrossvalidation <- function (X = NULL, task.specific.features = list(), 
   # retrain model
   full.model <- TreeGuidedGroupLasso(X = X, task.specific.features = task.specific.features,
                                      Y = Y, groups = groups, weights = weights, lambda = lambda,
-                                     verbose = max(verbose, 0), standardize = standardize, ...)
+                                     verbose = max(verbose, 0),
+                                     standardize = standardize,
+                                     fit.intercept = fit.intercept,
+                                     row.weights = row.weights, ...)
   train.end.time <- Sys.time()
   train.time <- as.numeric(train.end.time - train.start.time, units = "mins")
   if (verbose > -2) {

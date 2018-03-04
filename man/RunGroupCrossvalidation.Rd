@@ -6,7 +6,8 @@
 \usage{
 RunGroupCrossvalidation(X = NULL, task.specific.features = list(), Y,
   groups, weights.matrix, lambda.vec, num.folds = 10, num.threads = 1,
-  verbose = -1, standardize = TRUE, ...)
+  verbose = -1, row.weights = NULL, standardize = TRUE,
+  fit.intercept = TRUE, ...)
 }
 \arguments{
 \item{X}{Column centered N by J input matrix of features common to all tasks.}
@@ -36,8 +37,12 @@ output. verbose = -1: Display total elapsed time. verbose = 0: Display
 elapsed time for every parameter. verbose = 1: Print summary at the end of
 the optimization. verbose = 2: Print progress during optimization.}
 
+\item{row.weights}{(Optional) Use weighted MSE.}
+
 \item{standardize}{(Optional) Default is TRUE. Standardize data (using R
 function scale()). Coefficients will be returned on original scale.}
+
+\item{fit.intercept}{(Optional) Default is TRUE. Include intercept.}
 
 \item{...}{Additional parameters passed to
 \code{\link{TreeGuidedGroupLasso}}.}
