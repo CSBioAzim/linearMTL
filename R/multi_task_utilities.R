@@ -173,14 +173,20 @@ MTComputeMeanCorrelation <- function (LMTL.model, Y, X = NULL,
 #'   columns of Y.
 #' @param standardize Standardize data (default is TRUE).
 #' @param row.weights Observation weights.
+#' @param return.inputs Return transformed (scaled and weighted, if applicable)
+#'   version of X, Y and task.specific.features.
 #'
-#' @return List containing Y, X, task.specific.features, XTX and XTY. Also
-#'   return means and standard deviations for Y and all inputs.
+#' @return List containing Y, X, task.specific.features, XTX, XTY, XT1 and YT1.
+#'   Also return means and standard deviations for Y and all inputs.
 #'
 #' @seealso \code{\link{TreeGuidedGroupLasso}}, \code{\link{RunGroupCrossvalidation}}.
+#' @importFrom stats sd
 #' @export
-PrepareMatrices <- function(Y, X = NULL, task.specific.features = list(),
-                            standardize = TRUE, row.weights = NULL) {
+PrepareMatrices <- function(Y, X = NULL,
+                            task.specific.features = list(),
+                            standardize = TRUE,
+                            row.weights = NULL,
+                            return.inputs = FALSE) {
 
   if (is.null(X) & (length(task.specific.features) == 0)) {
     stop("No input data supplied.")
@@ -199,7 +205,26 @@ PrepareMatrices <- function(Y, X = NULL, task.specific.features = list(),
   }
   J <- J1 + J2
 
-  # compute sample moments
+  if (!is.null(row.weights)) {
+    #####################
+    # apply row.weights #
+    #####################
+    row.weights.sqrt <- sqrt(row.weights)
+    if (J1 > 0) {
+      X <- X * row.weights.sqrt
+    }
+    if (J2 > 0) {
+      task.specific.features <- lapply(task.specific.features,
+                                       FUN = function(A) {A * row.weights.sqrt})
+    }
+    Y <- Y * row.weights.sqrt
+  } else {
+    row.weights.sqrt <- rep(1, N)
+  }
+
+  ##########################
+  # compute sample moments #
+  ##########################
   X.sds <- NULL
   X.mus <- NULL
   tsf.sds <- list()
@@ -207,17 +232,11 @@ PrepareMatrices <- function(Y, X = NULL, task.specific.features = list(),
   Y.sds <- NULL
   Y.mus <- NULL
 
-  if (is.null(row.weights)) {
-    row.weights <- rep(1, N)
-  }
-
   if (J1 > 0) {
-    X <- X * row.weights
     X.sds <- apply(X, 2, sd)
     X.mus <- apply(X, 2, mean)
   }
   if (J2 > 0) {
-    task.specific.features <- lapply(task.specific.features, FUN = function(A){A * row.weights})
     tsf.sds <- lapply(task.specific.features, FUN = function(A){apply(A, 2, sd)})
     tsf.mus <- lapply(task.specific.features, FUN = function(A){apply(A, 2, mean)})
   }
@@ -227,7 +246,10 @@ PrepareMatrices <- function(Y, X = NULL, task.specific.features = list(),
   sample.moments <- list(X.mus = X.mus, X.sds = X.sds,
                          tsf.mus = tsf.mus, tsf.sds = tsf.sds,
                          Y.mus = Y.mus, Y.sds = Y.sds)
-  # standardize if required
+
+  ###########################
+  # standardize if required #
+  ###########################
   if (standardize) {
     if (J1 > 0) {
       X <- scale(X)
@@ -238,27 +260,34 @@ PrepareMatrices <- function(Y, X = NULL, task.specific.features = list(),
     Y <- scale(Y)
   }
 
+  ##############################
+  # precompute matrix products #
+  ##############################
+  YT1 <- t(Y) %*% row.weights.sqrt
   if (J2 == 0) {
     # no task specific features
     XTX <- t(X) %*% X
+    XT1 <- t(X) %*% row.weights.sqrt
     XTY <- t(X) %*% Y
   } else {
     # task specific features
-    XTX <- list ()
+    XTX <- list()
+    XT1 <- list()
     XTY <- matrix(0, J, K)
     for (k in 1:K) {
-      if (!is.null(X)) {
-        mat <- cbind(X, task.specific.features[[k]])
-      } else {
-        mat <- task.specific.features[[k]]
-      }
+      mat <- cbind(X, task.specific.features[[k]])
       XTX[[k]] <- t(mat) %*% mat
+      XT1[[k]] <- t(mat) %*% row.weights.sqrt
       XTY[, k] <- t(mat) %*% Y[, k]
     }
   }
-
-  return(list(XTX = XTX, XTY = XTY,
-              tsf = task.specific.features, X = X, Y = Y,
-              sample.moments = sample.moments))
-
+  if (return.inputs) {
+    return(list(XTX = XTX, XTY = XTY, XT1 = XT1, YT1 = YT1,
+                task.specific.features = task.specific.features,
+                X = X, Y = Y,
+                sample.moments = sample.moments))
+  } else {
+    return(list(XTX = XTX, XTY = XTY, XT1 = XT1, YT1 = YT1,
+                sample.moments = sample.moments))
+  }
 }

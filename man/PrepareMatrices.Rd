@@ -5,7 +5,7 @@
 \title{Precompute matrices XTX and XTY for \code{\link{TreeGuidedGroupLasso}}.}
 \usage{
 PrepareMatrices(Y, X = NULL, task.specific.features = list(),
-  standardize = TRUE)
+  standardize = TRUE, row.weights = NULL, return.inputs = FALSE)
 }
 \arguments{
 \item{Y}{N by K output matrix for every task.}
@@ -18,10 +18,15 @@ each task. Each entry contains an N by J2 matrix for one particular task
 columns of Y.}
 
 \item{standardize}{Standardize data (default is TRUE).}
+
+\item{row.weights}{Observation weights.}
+
+\item{return.inputs}{Return transformed (scaled and weighted, if applicable)
+version of X, Y and task.specific.features.}
 }
 \value{
-List containing Y, X, task.specific.features, XTX and XTY. Also
-  return means and standard deviations for Y and all inputs.
+List containing Y, X, task.specific.features, XTX, XTY, XT1 and YT1.
+  Also return means and standard deviations for Y and all inputs.
 }
 \description{
 Computes XTX and XTY. If task specific features are supplied, the result will

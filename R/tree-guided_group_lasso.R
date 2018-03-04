@@ -23,21 +23,19 @@
 #'   recommended to tune mu by hand.
 #' @param mu.adapt (Optional) Multiply mu with a factor of mu.adapt every
 #'   iteration. Default is no adaptation (mu.adapt = 1).
-#' @param XTX (Optional) Precomputed matrices t(X)*X as for example produced by
-#'   PrepareMatrices.
-#' @param XTY (Optional) Precomputed matrices t(X)*Y as for example produced by
-#'   PrepareMatrices
+#' @param cached.mats Precomputed matrices as produced by PrepareMatrices.
 #' @param MSE.Lipschitz (Optional) Lipschitz constant for MSE. If missing, use
 #'   maximum Eigenvalue of XTX.
-#' @param init.B (Optional) J by K matrix with initializations for the
-#'   regression coefficients.
+#' @param init.B (Optional) (J+1) by K matrix with initializations for the
+#'   regression coefficients and intercept.
 #' @param verbose (Optional) Integer in {0,1,2}. verbose = 0: No output. verbose
 #'   = 1: Print summary at the end of the optimization. verbose = 2: Print
 #'   progress during optimization.
 #' @param standardize (Optional) Default is TRUE. Standardize data (using R
-#'   function scale()). Coefficients will be returned on original scale. Note
-#'   that standardization will NOT be used if XTX and XTY are supplied.
-#' @param row.weights (Optional) Use weighted MSE.
+#'   function scale()). Coefficients will be returned on original scale.
+#' @param fit.intercept (Optional) Default is TRUE. Include intercept.
+#' @param row.weights (Optional) Use weighted MSE. When cached.mats is supplied,
+#'   it is assumed that the rows of X and Y were already weighted appropriately.
 #'
 #' @return List containing
 #' \item{lambda}{Regularization parameter used.}
@@ -54,9 +52,13 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
                                   groups, weights, lambda,
                                   max.iter = 10000, epsilon = 1e-5,
                                   mu = NULL, mu.adapt = 1,
-                                  XTX = NULL, XTY = NULL, MSE.Lipschitz = NULL,
-                                  init.B = NULL, verbose = 1,
-                                  standardize = TRUE, row.weights = NULL) {
+                                  cached.mats = NULL,
+                                  MSE.Lipschitz = NULL,
+                                  init.B = NULL,
+                                  verbose = 1,
+                                  standardize = TRUE,
+                                  fit.intercept = TRUE,
+                                  row.weights = NULL) {
 
   # This implementation minimizes the objective
   #   1/(2N)||Y - XB - intercept|| + lambda*Omega(B)
@@ -101,18 +103,15 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
   }
 
   # check for precomputed matrices
-  if (!is.null(XTX) | !is.null(XTY)) {
-    if (xor(!is.null(XTX), !is.null(XTY))) {
-      stop("When using immutables, both XTX and XTY need to be specified!")
-    }
+  if (!is.null(cached.mats)) {
     use.cached.immutables <- TRUE
   } else {
     use.cached.immutables <- FALSE
   }
 
-  if (standardize & use.cached.immutables) {
-    print("Warning: Standardization (standardize=TRUE) not available when immutables are supplied!")
-    standardize = FALSE
+  if (standardize) {
+    # we will recover the intercept at the end
+    fit.intercept <- FALSE
   }
 
   # input / output dimensions
@@ -120,55 +119,30 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
   K <- ncol(Y)
   J <- J1 + J2
 
-  # set input weights
-  if (is.null(row.weights)) {
-    row.weights <- rep(1, N)
-  } else {
-    row.weights <- sqrt(row.weights)
-    if (J1 > 0) {
-      X <- X * row.weights
-    }
-    if (J2 > 0) {
-      task.specific.features <- lapply(task.specific.features, FUN = function(A){A * row.weights})
-    }
-    Y <- Y * row.weights
-  }
-
   ####################################################
-  # precompute and standardize matrices if necessary #
+  # transform inputs and outputs if necessary;       #
+  # precompute matrix products                       #
   ####################################################
 
   if (!use.cached.immutables) {
-    mats <- PrepareMatrices(Y = Y, X = X,
-                            task.specific.features = task.specific.features,
-                            standardize = standardize)
-    XTX <- mats$XTX
-    XTY <- mats$XTY
-    X <- mats$X
-    Y <- mats$Y
-    task.specific.features <- mats$tsf
+    cached.mats <- PrepareMatrices(Y = Y, X = X,
+                                   task.specific.features = task.specific.features,
+                                   standardize = standardize, row.weights = row.weights,
+                                   return.inputs = TRUE)
+    X <- cached.mats$X
+    task.specific.features <- cached.mats$task.specific.features
+    Y <- cached.mats$Y
+  }
+  XTX <- cached.mats$XTX
+  XTY <- cached.mats$XTY
+  XT1 <- cached.mats$XT1
+  YT1 <- cached.mats$YT1
 
-    # used to compute intercept
-    X.means <- mats$sample.moments$X.mus
-    tsf.means <- mats$sample.moments$tsf.mus
-    Y.means <- mats$sample.moments$Y.mus
-  } else {
-    # determine means from scratch
-    X.means <- colMeans(X)
-    tsf.means <- lapply(task.specific.features, FUN = function(A){apply(A, 2, mean)})
-    Y.means <- colMeans(Y)
+  if (is.null(row.weights)) {
+    row.weights <- rep(1, K)
   }
-  if (!standardize) {
-    # compute weighted average of the columns of X.
-    # (row.weights contains the roots of the weights)
-    XTw <- NULL
-    if (J1 > 0) {
-      XTw <- t(X) %*% row.weights
-    }
-    if (J2 > 0) {
-      XTw <- lapply(task.specific.features, FUN = function(A){rbind(XTw, t(A) %*% row.weights)})
-    }
-  }
+  row.weights.sqrt <- sqrt(row.weights)
+  row.weights.sum <- sum(row.weights)
 
   ###################
   # initializations #
@@ -235,12 +209,8 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
   } else {
     B <- init.B
   }
-  if (standardize) {
-    intercept <- rep(0, K)
-  } else {
-    intercept <- ComputeIntercept(B, X, task.specific.features, Y, row.weights)
-  }
-  intercept.new <- intercept
+
+  intercept <- rep(0, K)
 
   W <- B
   iter <- 0
@@ -248,7 +218,7 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
   delta <- epsilon + 1
 
   # compute initial objective function
-  obj.old <- ComputeObjective(Y = Y, B = B, intercept = row.weights %*% t(intercept), X = X,
+  obj.old <- ComputeObjective(Y = Y, B = B, intercept = intercept, X = X,
                               task.specific.features = task.specific.features,
                               C = C, group.ranges = group.ranges, lambda = lambda,
                               singleton.weights = singleton.weights)
@@ -269,19 +239,11 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
     if (length(task.specific.features) > 0) {
       # task specific features
       for (k in 1:K) {
-        dh[, k] <- 1/N * (XTX[[k]] %*% W[, k] - XTY[, k])
-        if (!standardize) {
-          # intercept is nonzero, add intercept
-          dh[, k] <- dh[, k] + 1/N * XTw[[k]] * intercept[k]
-        }
+        dh[, k] <- 1/N * (XTX[[k]] %*% W[, k] - XTY[, k] + XT1[[k]] %*% t(intercept))
       }
     } else {
       # no task specific features
-      dh <- 1/N * (XTX %*% W - XTY)
-      if (!standardize) {
-        # intercept is nonzero, add intercept
-        dh <- dh + 1/N * XTw %*% t(intercept)
-      }
+      dh <- 1/N * (XTX %*% W - XTY + XT1 %*% t(intercept))
     }
     dh <- dh + df
 
@@ -291,19 +253,21 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
     # apply soft-thresholding
     B.new  <- sign(Q) * pmax(0, sweep(abs(Q), 2, lambda/L * singleton.weights))
 
-    # compute new intercept
-    if (!standardize) {
-      intercept.new <- ComputeIntercept(B.new, X, task.specific.features, Y, row.weights)
-    }
     theta.new <- 2 / (iter + 3)
     W <- B.new + (1 - theta) / theta * theta.new * (B.new - B)
+
+    if (fit.intercept) {
+      intercept.new <- ComputeIntercept(XT1, YT1, B.new, row.weights.sum)
+    } else {
+      intercept.new <- rep(0, K)
+    }
 
     # compute delta
     delta <- sqrt(sum((B.new - B)^2) + sum((intercept.new - intercept)^2))
     delta <- delta / max(sqrt(sum(B.new^2) + sum(intercept.new^2)), 1)
     if (((iter %% 100) == 0) & (iter > 0)) {
       # compute new objective
-      obj <- ComputeObjective(Y = Y, B = B.new, intercept = row.weights %*% t(intercept.new), X = X,
+      obj <- ComputeObjective(Y = Y, B = B.new, intercept = intercept.new, X = X,
                               task.specific.features = task.specific.features,
                               C = C, group.ranges = group.ranges, lambda = lambda,
                               singleton.weights = singleton.weights)
@@ -314,7 +278,7 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
       }
     }
 
-    # adapt learning rate
+    # adapt mu
     mu <- mu * mu.adapt
     L <- L1 + C.norm.squared / mu
 
@@ -325,8 +289,8 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
   }
   end.time <- Sys.time()
 
-  # compute new objective
-  obj <- ComputeObjective(Y = Y, B = B, intercept = row.weights %*% t(intercept), X = X,
+  # compute objective
+  obj <- ComputeObjective(Y = Y, B = B, intercept = intercept, X = X,
                           task.specific.features = task.specific.features,
                           C = C, group.ranges = group.ranges, lambda = lambda,
                           singleton.weights = singleton.weights)
@@ -342,7 +306,7 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
 
   if (standardize) {
     # recover coefficients on original scale and compute intercept
-    B.transformed <- ComputeInverseArtesi(B, mats$sample.moments)
+    B.transformed <- ComputeInverseArtesi(B, cached.mats$sample.moments)
     B <- B.transformed[2:nrow(B.transformed), ]
     intercept <- B.transformed[1, ]
   }
@@ -380,21 +344,15 @@ CalculateInnerGroupPenalty <- function(A, group.ranges) {
   return(s)
 }
 
-ComputeObjective <- function(Y, B, intercept, X = NULL, task.specific.features = list(),
+ComputeObjective <- function(Y, B, intercept = intercept,
+                             X = NULL, task.specific.features = list(),
                              C, group.ranges, lambda, singleton.weights) {
   # Computes the optimization objective.
   N <- nrow(Y)
   K <- ncol(Y)
   # compute MSE
-  pred <- MTPredict(LMTL.model = list(B = B, intercept = rep(0, K)), X = X,
+  pred <- MTPredict(LMTL.model = list(B = B, intercept = intercept), X = X,
                     task.specific.features = task.specific.features)
-  if (is.null(nrow(intercept)) | (nrow(intercept) == 0)) {
-    pred <- sweep(pred, 2, FUN = "+", intercept)
-  } else {
-    # weighted intercept
-    pred <- pred + intercept
-  }
-
   obj <- 1/(2*N) * sum((Y - pred)^2)
   # compute penalty for inner nodes
   obj <- obj + CalculateInnerGroupPenalty(C %*% t(B), group.ranges)
@@ -404,14 +362,17 @@ ComputeObjective <- function(Y, B, intercept, X = NULL, task.specific.features =
   return(obj)
 }
 
-ComputeIntercept <- function(B, X, task.specific.features, Y, row.weights) {
-  # Compute the intercept term for the current B.
-  K <- ncol(Y)
-  Nm <- sum(row.weights^2)
-  pred <- MTPredict(LMTL.model = list(B = B, intercept = rep(0, K)),
-                    X = X, task.specific.features = task.specific.features)
-  intercept <- 1/Nm * (row.weights %*% (Y - pred))
-  return(as.vector(intercept))
+ComputeIntercept <- function(XT1, YT1, B.new, row.weights.sum) {
+  K <- ncol(B.new)
+  intercept <- rep(0, K)
+  if (is.list(XT1)) {
+    for (k in 1:K) {
+      intercept[k] <- YT1[k] - t(XT1[[k]]) %*% B.new[, k]
+    }
+  } else {
+    intercept <- t(YT1) - t(XT1) %*% B.new
+  }
+  return(as.vector(intercept/row.weights.sum))
 }
 
 ComputeInverseArtesi <- function(B, sample.moments) {

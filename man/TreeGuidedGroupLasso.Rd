@@ -6,8 +6,9 @@
 \usage{
 TreeGuidedGroupLasso(X = NULL, task.specific.features = list(), Y, groups,
   weights, lambda, max.iter = 10000, epsilon = 1e-05, mu = NULL,
-  mu.adapt = 1, XTX = NULL, XTY = NULL, MSE.Lipschitz = NULL,
-  init.B = NULL, verbose = 1, standardize = TRUE)
+  mu.adapt = 1, cached.mats = NULL, MSE.Lipschitz = NULL, init.B = NULL,
+  verbose = 1, standardize = TRUE, fit.intercept = TRUE,
+  row.weights = NULL)
 }
 \arguments{
 \item{X}{N by J1 matrix of features common to all tasks.}
@@ -39,25 +40,25 @@ recommended to tune mu by hand.}
 \item{mu.adapt}{(Optional) Multiply mu with a factor of mu.adapt every
 iteration. Default is no adaptation (mu.adapt = 1).}
 
-\item{XTX}{(Optional) Precomputed matrices t(X)*X as for example produced by
-PrepareMatrices.}
-
-\item{XTY}{(Optional) Precomputed matrices t(X)*Y as for example produced by
-PrepareMatrices}
+\item{cached.mats}{Precomputed matrices as produced by PrepareMatrices.}
 
 \item{MSE.Lipschitz}{(Optional) Lipschitz constant for MSE. If missing, use
 maximum Eigenvalue of XTX.}
 
-\item{init.B}{(Optional) J by K matrix with initializations for the
-regression coefficients.}
+\item{init.B}{(Optional) (J+1) by K matrix with initializations for the
+regression coefficients and intercept.}
 
 \item{verbose}{(Optional) Integer in {0,1,2}. verbose = 0: No output. verbose
 = 1: Print summary at the end of the optimization. verbose = 2: Print
 progress during optimization.}
 
 \item{standardize}{(Optional) Default is TRUE. Standardize data (using R
-function scale()). Coefficients will be returned on original scale. Note
-that standardization will NOT be used if XTX and XTY are supplied.}
+function scale()). Coefficients will be returned on original scale.}
+
+\item{fit.intercept}{(Optional) Default is TRUE. Include intercept.}
+
+\item{row.weights}{(Optional) Use weighted MSE. When cached.mats is supplied,
+it is assumed that the rows of X and Y were already weighted appropriately.}
 }
 \value{
 List containing
