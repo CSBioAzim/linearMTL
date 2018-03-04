@@ -1,6 +1,47 @@
-TGGLMixture <- function(X = NULL, task.specific.features = list(), Y, M,
-                        groups, weights, lambda, gam = 0,
-                        max.iter = 200, eps = 1e-5, verbose = -1, sample.data = TRUE) {
+#' Fit a tree-guided group lasso mixture model model (TGGLMix).
+#'
+#' Fit a tree-guided group lasso mixture model using a generalized EM
+#' algorithm. May be trained on shared or task specific feature matrices.
+#'
+#' @param X N by J1 matrix of features common to all tasks.
+#' @param task.specific.features List of features which are specific to each
+#'   task. Each entry contains an N by J2 matrix for one particular task (where
+#'   columns are features). List has to be ordered according to the columns of
+#'   Y.
+#' @param Y N by K output matrix for every task.
+#' @param M Number of Clusters.
+#' @param groups Binary V by K matrix determining group membership: Task k in
+#'   group v iff groups[v,k] == 1.
+#' @param weights V dimensional vector with group weights.
+#' @param lambda Regularization parameter.
+#' @param gam (Optional) Regularization parameter for component m will be lambda
+#'   times the prior for component m to the power of gam.
+#' @param EM.max.iter (Optional) Maximum number of iterations for EM algorithm.
+#' @param EM.epsilon (Optional) Desired accuracy. Algorithm will terminate if
+#'   change in penalized negative log-likelihood drops below EM.epsilon.
+#' @param EM.verbose (Optional) Integer in {0,1,2}. verbose = 0: No output.
+#'   verbose = 1: Print summary at the end of the optimization. verbose = 2:
+#'   Print progress during optimization.
+#' @param sample.data (Optional) Sample data according to posterior probability
+#'   or not.
+#' @param ... Additional parameters passed to
+#'   \code{\link{TreeGuidedGroupLasso}}.#'
+#'
+#' @return List containing
+#' \item{models}{List of TGGL models for each component.}
+#' \item{posterior}{N by M Matrix containing posterior probabilities.}
+#' \item{prior}{Vector with prior probabilities for each component.}
+#' \item{sigmas}{M by K Matrix with standard deviations for each component.}
+#' \item{obj}{Penalized negative log-likelihood (final objective value).}
+#' \item{loglik}{Likelihood for training data.}
+#'
+#' @seealso \code{\link{TreeGuidedGroupLasso}}
+#' @export
+#' @importFrom stats runif rmultinom
+TGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
+                    groups, weights, lambda, gam = 1,
+                    EM.max.iter = 200, EM.epsilon = 1e-5,
+                    EM.verbose = 0, sample.data = FALSE, ...) {
 
   ##################
   # error checking #
@@ -45,7 +86,7 @@ TGGLMixture <- function(X = NULL, task.specific.features = list(), Y, M,
   J <- J1 + J2
 
   # penalized negative log likelihood
-  pen.negloglik <- Inf
+  obj <- Inf
 
   model.list <- list()
   for (m in 1:M) {
@@ -75,62 +116,81 @@ TGGLMixture <- function(X = NULL, task.specific.features = list(), Y, M,
   # successive iterations
   delta <- Inf
 
+  # if prior probability drops below prior.min
+  # abort optimization
+  prior.min <- 1/N
+
   iter <- 1
 
   #####################
   # optimize using EM #
   #####################
-  while (iter < max.iter) {
+  while (iter < EM.max.iter) {
 
     # save old penalized likelihood
-    old.lik <- pen.negloglik
-
-    pen.negloglik <- 0
+    obj.old <- obj
     post.old <- tau
+    obj <- 0
+
+    # compute new mixing proportions
+    tau.sums <- colSums(tau)
+    if (sum(1/N * tau.sums < prior.min) > 0 | sum(prior < prior.min) > 0) {
+      if (EM.verbose >= 1) {
+        print("Component with prior 0. Abort optimization.")
+      }
+      # TODO add option for component removal
+      likelihood <- -Inf
+      break()
+    }
+    prior <- ComputePiMix(model.list, tau.sums, lambda, gam, prior, N)
+
     if (sample.data & (M > 1)) {
       # assign data point to one of the M components
       # according to its posterior distribution
       tau <- t(apply(tau, 1, FUN=function(x){rmultinom(1,1,x)}))
     }
-    # compute new mixing proportions
-    prior <- ComputePiMix(model.list, tau, lambda, gam, prior)
     for (m in 1:M) {
       sqrt.tau <- sqrt(tau[, m])
       Nm <- sum(tau[, m])
 
-      # optimize rho
-      weighted.Y <- Y * sqrt.tau
-      weighted.Y.norm.sqrt <- colSums(weighted.Y^2)
-      weighted.pred <- model.list[[m]]$pred * sqrt.tau
-      # inner product of weighted response and prediction
-      inner.products <- colSums(weighted.Y * weighted.pred)
-      rho[m, ] <- inner.products + sqrt(inner.products^2 + 4*Nm*weighted.Y.norm.sqrt)
-      rho[m, ] <- rho[m, ] / (2*weighted.Y.norm.sqrt)
+      if (Nm > 0) {
+        # optimize rho
+        weighted.Y <- Y * sqrt.tau
+        weighted.Y.norm.squared <- colSums(weighted.Y^2)
+        weighted.pred <- model.list[[m]]$pred * sqrt.tau
+        # inner product of weighted response and prediction
+        inner.products <- colSums(weighted.Y * weighted.pred)
+        rho[m, ] <- inner.products + sqrt(inner.products^2 + 4*Nm*weighted.Y.norm.squared)
+        rho[m, ] <- rho[m, ] / (2*weighted.Y.norm.squared)
+      }
 
-      # optimize phi
-      Yrho <- sweep(Y, 2, rho[m, ], "*")
-      model.list[[m]] <- TreeGuidedGroupLasso(X = X,
-                                              task.specific.features = task.specific.features,
-                                              Y = Yrho,
-                                              groups = groups, weights = weights,
-                                              lambda = prior[m]^gam * lambda,
-                                              max.iter = 10000, epsilon = 1e-5,
-                                              mu = 1e-5, mu.adapt = 0.99,
-                                              init.B = model.list[[m]]$B,
-                                              verbose = 0, standardize = FALSE,
-                                              row.weights = tau[, m])
-      # compute (unweighted) predictions
-      pred <- MTPredict(model.list[[m]], X = X,
-                        task.specific.features = task.specific.features)
-      model.list[[m]]$pred <- pred
-      squared.resid <- (Yrho - pred)^2
+      Y.rho <- sweep(Y, 2, rho[m, ], "*")
+
+      if (Nm > 0) {
+        # optimize phi
+        model.list[[m]] <- TreeGuidedGroupLasso(X = X,
+                                                task.specific.features = task.specific.features,
+                                                Y = Y.rho,
+                                                groups = groups, weights = weights,
+                                                lambda = prior[m]^gam * lambda,
+                                                mu = prior[m]^gam * 1e-5,
+                                                init.B = model.list[[m]]$B,
+                                                verbose = 0, standardize = FALSE,
+                                                row.weights = tau[, m], ...)
+        # compute new (unweighted) predictions
+        pred <- MTPredict(model.list[[m]], X = X,
+                          task.specific.features = task.specific.features)
+        model.list[[m]]$pred <- pred
+      }
+
+      squared.resid <- (Y.rho - model.list[[m]]$pred)^2
 
       # compute TGGL penalty by subtracting MSE from the returned objective value
-      pen <- model.list[[m]]$obj - 1/(2*N) * sum(squared.resid*tau[, m])
+      pen <- model.list[[m]]$obj - 1/(2*N) * sum(rowSums(squared.resid) * tau[, m])
       model.list[[m]]$pen <- pen
 
       # update objective by adding TGGL penalty term for component m
-      pen.negloglik <- pen.negloglik + pen
+      obj <- obj + pen
 
       # compute log of unscaled tau
       tau[, m] <- rowSums(-1/2 * squared.resid) + sum(log(rho[m, ])) - K/2*log(2*pi)
@@ -139,12 +199,12 @@ TGGLMixture <- function(X = NULL, task.specific.features = list(), Y, M,
 
     # calculate new posterior probabilities
     if (sum(is.infinite(tau)) > 0) {
-      if (verbose > 1) {
+      if (EM.verbose > 1) {
         print("Warning (some probabilities are Inf)")
       }
       # reset posterior for data points which
       # have Inf entries for all components
-      inf.rows <- which(rowSums(is.infinite(R)) == M)
+      inf.rows <- which(rowSums(is.infinite(tau)) == M)
       tau[inf.rows, ] <- log(1/M)
     }
     row.maxima <- tau[cbind(1:nrow(tau), max.col(tau, "first"))]
@@ -152,14 +212,15 @@ TGGLMixture <- function(X = NULL, task.specific.features = list(), Y, M,
     tau <- exp(tau - logsums)
 
     # compute objective
-    likelihood <- sum(logsums)
-    pen.negloglik <- pen.negloglik - 1/N * likelihood
+    loglik <- sum(logsums)
+    obj <- obj - 1/N * loglik
 
-    delta <- old.lik - pen.negloglik
+    delta <- obj.old - obj
     s <- paste(sprintf("%.2f", prior), collapse = " ")
-    if (delta > eps) {
-      if (verbose >= 1) {
-        print(sprintf("Iter %d. PenNegLog: %.5f. Mixing Proportions: %s", iter, pen.negloglik, s))
+
+    if (delta > EM.epsilon) {
+      if (EM.verbose > 1) {
+        print(sprintf("Iter %d. Obj: %.5f. Mixing Proportions: %s", iter, obj, s))
       }
     } else {
       if (sample.data & (delta < 0)) {
@@ -175,10 +236,10 @@ TGGLMixture <- function(X = NULL, task.specific.features = list(), Y, M,
           # reject step, reset to
           # previous estimates
           tau <- post.old
-          pen.negloglik <- old.lik
+          obj <- obj.old
         }
-        if (verbose >= 1) {
-          print(sprintf("Iter %d. PenNegLog: %.5f. Mixing Proportions: %s", iter, pen.negloglik, s))
+        if (EM.verbose > 1) {
+          print(sprintf("Iter %d. Obj: %.5f. Mixing Proportions: %s", iter, obj, s))
         }
       } else {
         break()
@@ -190,50 +251,91 @@ TGGLMixture <- function(X = NULL, task.specific.features = list(), Y, M,
   # compute original parameterization
   sig <- 1/rho
   for (m in 1:M) {
-    model.list[[m]] <- rbind(model.list[[m]]$intercept * sig[m, ],
-                             sweep(model.list[[m]]$B, 2, sig[m, ], "*"))
-
+    model.list[[m]]$intercept <- model.list[[m]]$intercept * sig[m, ]
+    model.list[[m]]$B <- sweep(model.list[[m]]$B, 2, sig[m, ], "*")
+  }
+  if (EM.verbose > 0) {
+    print(sprintf("Total iterations: %d. Obj: %.5f. LL: %.5f. Mixing Proportions: %s",
+                  iter, obj, loglik, s))
   }
   return(list(models = model.list,
               posterior = post.old,
               prior = prior,
-              likelihood = likelihood))
+              sigmas = sig,
+              obj = obj,
+              loglik = loglik))
 }
 
 
-ComputePiMix <- function(model.list, tau, lambda, gam, prior) {
+ComputePiMix <- function(model.list, tau.sums, lambda, gam, prior, N) {
   # Computes a new estimate for the prior probabilities
   # using a line search
   d <- 0.1
-  M <- length(model.list)
-  tau.means <- colMeans(tau)
+  tau.means <- 1/N * tau.sums
   if (gam == 0) {
     # closed form optimal solution
     return(tau.means)
   } else {
-    N <- nrow(tau)
+    M <- length(model.list)
     ComputePiMixObj <- function(new.prior) {
       # Compute objective value for the
       # optimization of prior probabilities
-      obj <- -1/N * sum(sweep(tau, 2, log(new.prior), "*"))
+      obj <- -1/N * sum(tau.sums * log(new.prior))
       for (m in 1:M) {
         # compute penalty for new.prior
         obj <- obj + (new.prior[m]/prior[m])^gam * model.list[[m]]$pen
       }
       return(obj)
     }
-    old.obj <- ComputePiMixObj(prior)
+    obj.old <- ComputePiMixObj(prior)
     obj <- ComputePiMixObj(tau.means)
     new.prior <- tau.means
     l <- 0
     # Find largest stepsize d^l in (0, 1] such that
     # moving in the direction of (tau.means - prior)
     # does not increase the objective
-    while (obj > old.obj) {
+    while (obj > obj.old) {
       l <- l + 1
       new.prior <- prior + d^l * (tau.means - prior)
       obj <- ComputePiMixObj(new.prior)
     }
     return(new.prior)
   }
+}
+
+#' Compute the log-likelihood for a given mixture model.
+#'
+#' @param models List of TGGL models.
+#' @param prior Vector of prior probabilities for each component.
+#' @param sigmas M by K Matrix of standard deviations.
+#' @param X N by J1 matrix of features common to all tasks.
+#' @param task.specific.features List of features which are specific to each
+#'   task. Each entry contains an N by J2 matrix for one particular task (where
+#'   columns are features). List has to be ordered according to the columns of
+#'   Y.
+#' @param Y N by K output matrix for every task.
+#'
+#' @return Log-likelihood.
+#' @export
+ComputeLogLikelihood <- function(models, prior, sigmas,
+                                 X = NULL, task.specific.features = list(), Y) {
+  loglik <- 0
+  M <- length(models)
+  N <- nrow(Y)
+  K <- ncol(Y)
+
+  # posterior probabilities
+  tau <- matrix(0, nrow = N, ncol = M)
+  for (m in 1:M) {
+    pred <- MTPredict(LMTL.model = models[[m]], X = X,
+                      task.specific.features = task.specific.features)
+    scaled.squared.resid <- sweep((Y - pred), 2, sqrt(2)*sigmas[m, ], "/")^2
+    # compute log of unscaled tau
+    tau[, m] <- -rowSums(scaled.squared.resid) - sum(log(sigmas[m, ])) - K/2*log(2*pi)
+    tau[, m] <- tau[, m] + log(prior[m])
+  }
+  row.maxima <- tau[cbind(1:nrow(tau), max.col(tau, "first"))]
+  logsums <- row.maxima + log(rowSums(exp(tau - row.maxima)))
+  tau <- exp(tau - logsums)
+  return(list(loglik = sum(logsums), posterior = tau))
 }
