@@ -4,7 +4,7 @@
 \alias{TestLinearMTL}
 \title{Test of tree-guided group lasso on synthetic data.}
 \usage{
-TestLinearMTL(method = "group")
+TestLinearMTL(method = "all")
 }
 \arguments{
 \item{method}{Method to use. "group" (TGGL), "tbt" (task-by-task), "all" (both).}
