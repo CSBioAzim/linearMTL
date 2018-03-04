@@ -21,6 +21,7 @@
 #'     \item{full.model}{Full model trained on the whole data set.}
 #'
 #' @importFrom foreach foreach %dopar%
+#' @importFrom stats coef
 #' @export
 RunTBTCrossvalidation <- function (X = NULL, task.specific.features = list(), Y,
                                    lambda.vec, num.folds = 10, num.threads = 1,

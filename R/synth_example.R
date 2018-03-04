@@ -7,6 +7,7 @@
 #'
 #' @importFrom lattice levelplot
 #' @importFrom grDevices gray
+#' @importFrom stats rnorm
 #' @export
 TestLinearMTL <- function(method = "all") {
   set.seed(12345)
@@ -55,8 +56,8 @@ TestLinearMTL <- function(method = "all") {
                                     weights.matrix = matrix(M$weights, nrow = 1),
                                     lambda.vec = lambda.vec,
                                     epsilon = 1e-4,
-                                    mu = 1e-5, mu.adapt = 0.99,
-                                    verbose = 0, standardize = TRUE)
+                                    mu = 1e-5, mu.adapt = 1,
+                                    verbose = 0, standardize = T)
     tggl.model <- tggl$full.model
   }
   if ((method == "tbt") | (method == "all")) {
@@ -64,7 +65,7 @@ TestLinearMTL <- function(method = "all") {
     tbt <- RunTBTCrossvalidation(X = Xtrain,
                                  Y = Ytrain,
                                  lambda.vec = lambda.vec,
-                                 standardize = TRUE)
+                                 standardize = T)
     tbt.model <- tbt$full.model
   }
 

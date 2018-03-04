@@ -28,6 +28,10 @@
 #' @param out.dir Output directory for results and plots.
 #'
 #' @export
+#' @importFrom grDevices pdf dev.off
+#' @importFrom utils write.table
+#' @importFrom stats as.dendrogram
+#' @importFrom graphics plot points lines text
 EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, LMTL.model,
                                   train.idx, test.idx, task.grouping = NULL,
                                   feature.names = NULL, task.names = NULL,
@@ -287,6 +291,7 @@ EvaluateLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, 
 #' @param out.dir Output directory for results and plots.
 #'
 #' @export
+#' @importFrom utils write.table
 EvaluateClusteredLinearMTModel <- function(X = NULL, task.specific.features = list(), Y, LMTL.model.list,
                                            train.idx.by.cluster, test.idx.by.cluster,
                                            task.names = NULL, out.dir) {
@@ -396,6 +401,8 @@ EvaluateClusteredLinearMTModel <- function(X = NULL, task.specific.features = li
 #' @param ... Other arguments passed to heatmap.2.
 #'
 #' @importFrom gplots heatmap.2
+#' @importFrom grDevices rainbow
+#' @importFrom graphics legend
 PlotCustomHeatmap <- function (matrix, scale = "none", trace = "none",
                                task.grouping, dendro = "col", density.info = 'none', ...) {
 
