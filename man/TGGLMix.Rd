@@ -5,8 +5,9 @@
 \title{Fit a tree-guided group lasso mixture model model (TGGLMix).}
 \usage{
 TGGLMix(X = NULL, task.specific.features = list(), Y, M, groups, weights,
-  lambda, gam = 1, EM.max.iter = 200, EM.epsilon = 1e-05,
-  EM.verbose = 0, sample.data = FALSE, ...)
+  lambda, gam = 1, homoscedastic = FALSE, EM.max.iter = 200,
+  EM.epsilon = 1e-05, EM.verbose = 0, sample.data = FALSE,
+  TGGL.mu = 1e-05, TGGL.epsilon = 1e-05)
 }
 \arguments{
 \item{X}{N by J1 matrix of features common to all tasks.}
@@ -30,6 +31,9 @@ group v iff groups[v,k] == 1.}
 \item{gam}{(Optional) Regularization parameter for component m will be lambda
 times the prior for component m to the power of gam.}
 
+\item{homoscedastic}{(Optional) Force variance to be the same for all tasks
+in a component. Default is FALSE.}
+
 \item{EM.max.iter}{(Optional) Maximum number of iterations for EM algorithm.}
 
 \item{EM.epsilon}{(Optional) Desired accuracy. Algorithm will terminate if
@@ -42,8 +46,9 @@ Print progress during optimization.}
 \item{sample.data}{(Optional) Sample data according to posterior probability
 or not.}
 
-\item{...}{Additional parameters passed to
-\code{\link{TreeGuidedGroupLasso}}.#'}
+\item{TGGL.mu}{(Optional) Mu parameter for TGGL.}
+
+\item{TGGL.epsilon}{(Optional) Epsilon parameter for TGGL.}
 }
 \value{
 List containing

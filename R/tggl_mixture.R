@@ -16,6 +16,8 @@
 #' @param lambda Regularization parameter.
 #' @param gam (Optional) Regularization parameter for component m will be lambda
 #'   times the prior for component m to the power of gam.
+#' @param homoscedastic (Optional) Force variance to be the same for all tasks
+#'   in a component. Default is FALSE.
 #' @param EM.max.iter (Optional) Maximum number of iterations for EM algorithm.
 #' @param EM.epsilon (Optional) Desired accuracy. Algorithm will terminate if
 #'   change in penalized negative log-likelihood drops below EM.epsilon.
@@ -24,8 +26,8 @@
 #'   Print progress during optimization.
 #' @param sample.data (Optional) Sample data according to posterior probability
 #'   or not.
-#' @param ... Additional parameters passed to
-#'   \code{\link{TreeGuidedGroupLasso}}.#'
+#' @param TGGL.mu (Optional) Mu parameter for TGGL.
+#' @param TGGL.epsilon (Optional) Epsilon parameter for TGGL.
 #'
 #' @return List containing
 #' \item{models}{List of TGGL models for each component.}
@@ -39,9 +41,11 @@
 #' @export
 #' @importFrom stats runif rmultinom
 TGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
-                    groups, weights, lambda, gam = 1,
+                    groups, weights, lambda,
+                    gam = 1, homoscedastic = FALSE,
                     EM.max.iter = 200, EM.epsilon = 1e-5,
-                    EM.verbose = 0, sample.data = FALSE, ...) {
+                    EM.verbose = 0, sample.data = FALSE,
+                    TGGL.mu = 1e-5, TGGL.epsilon = 1e-5) {
 
   ##################
   # error checking #
@@ -160,8 +164,17 @@ TGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
         weighted.pred <- model.list[[m]]$pred * sqrt.tau
         # inner product of weighted response and prediction
         inner.products <- colSums(weighted.Y * weighted.pred)
-        rho[m, ] <- inner.products + sqrt(inner.products^2 + 4*Nm*weighted.Y.norm.squared)
-        rho[m, ] <- rho[m, ] / (2*weighted.Y.norm.squared)
+
+        if (homoscedastic) {
+          scriptC <- sum(inner.products)
+          scriptY <- sum(weighted.Y.norm.squared)
+          rho[m, ] <- scriptC + sqrt(scriptC^2 + 4*K*Nm*scriptY)
+          rho[m, ] <- rho[m, ] / (2*scriptY)
+        } else {
+          rho[m, ] <- inner.products + sqrt(inner.products^2 + 4*Nm*weighted.Y.norm.squared)
+          rho[m, ] <- rho[m, ] / (2*weighted.Y.norm.squared)
+        }
+
       }
 
       Y.rho <- sweep(Y, 2, rho[m, ], "*")
@@ -173,10 +186,11 @@ TGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
                                                 Y = Y.rho,
                                                 groups = groups, weights = weights,
                                                 lambda = prior[m]^gam * lambda,
-                                                mu = prior[m]^gam * 1e-5,
+                                                mu = prior[m]^gam * TGGL.mu,
+                                                epsilon = TGGL.epsilon,
                                                 init.B = model.list[[m]]$B,
                                                 verbose = 0, standardize = FALSE,
-                                                row.weights = tau[, m], ...)
+                                                row.weights = tau[, m])
         # compute new (unweighted) predictions
         pred <- MTPredict(model.list[[m]], X = X,
                           task.specific.features = task.specific.features)
@@ -184,6 +198,19 @@ TGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
       }
 
       squared.resid <- (Y.rho - model.list[[m]]$pred)^2
+
+      # if (Nm > 0) {
+      #   old.sigma <- 1/rho[m, 1]
+      #   if (homoscedastic) {
+      #     sigma.corrected <- sqrt( sum(rowSums(squared.resid) * tau[, m]) / (K * Nm * rho[m, 1]^2))
+      #   } else {
+      #     sigma.corrected <- sqrt( colSums(sweep(squared.resid, 2, rho[m, ]^2, "/") * tau[, m]) / Nm)
+      #   }
+      #   rho[m, ] <- 1 /sigma.corrected
+      #   print(sprintf("BiasCorrect: Old: %.2f -> New: %.2f", old.sigma, sigma.corrected))
+      #   Y.rho <- sweep(Y, 2, rho[m, ], "*")
+      #   squared.resid <- (Y.rho - model.list[[m]]$pred)^2
+      # }
 
       # compute TGGL penalty by subtracting MSE from the returned objective value
       pen <- model.list[[m]]$obj - 1/(2*N) * sum(rowSums(squared.resid) * tau[, m])
@@ -219,6 +246,7 @@ TGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
     s <- paste(sprintf("%.2f", prior), collapse = " ")
 
     if (delta > EM.epsilon) {
+      rejects <- 0
       if (EM.verbose > 1) {
         print(sprintf("Iter %d. Obj: %.5f. Mixing Proportions: %s", iter, obj, s))
       }
@@ -235,8 +263,12 @@ TGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
         if (runif(1) > exp(-alpha * (-delta))) {
           # reject step, reset to
           # previous estimates
+          rejects <- rejects + 1
           tau <- post.old
           obj <- obj.old
+          if (rejects > 20) {
+            break()
+          }
         }
         if (EM.verbose > 1) {
           print(sprintf("Iter %d. Obj: %.5f. Mixing Proportions: %s", iter, obj, s))

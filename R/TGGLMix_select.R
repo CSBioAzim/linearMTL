@@ -39,8 +39,8 @@ TGGLMixSelection <- function(X = NULL, task.specific.features = list(), Y, M.vec
     M <- parameter.grid[ind, 1]
     lambda <- parameter.grid[ind, 2]
     results[[ind]] <- RunTGGLMix(X = X, task.specific.features = task.specific.features, Y = Y, M = M,
-                               test.ids = test.ids, groups = groups, weights = weights,
-                               lambda = lambda, verbose = verbose, ...)
+                                 test.ids = test.ids, groups = groups, weights = weights,
+                                 lambda = lambda, verbose = verbose, ...)
   }
   opt.model.idx <- which.max(sapply(results, FUN = function(x){x$test.loglik}))
   sel.end.time <- Sys.time()

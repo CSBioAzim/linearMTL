@@ -25,8 +25,21 @@
 #' @param verbose (Optional) Integer in {0,1,2}. verbose = 0: No output.
 #'   verbose = 1: Print summary at the end of the optimization. verbose = 2:
 #'   Print progress during optimization.
-#' @param ... Additional parameters passed to
-#'   \code{\link{TGGLMix}}.
+#' @param gam (Optional) Regularization parameter for component m will be lambda
+#'   times the prior for component m to the power of gam.
+#' @param homoscedastic (Optional) Force variance to be the same for all tasks
+#'   in a component. Default is FALSE.
+#' @param EM.max.iter (Optional) Maximum number of iterations for EM algorithm.
+#' @param EM.epsilon (Optional) Desired accuracy. Algorithm will terminate if
+#'   change in penalized negative log-likelihood drops below EM.epsilon.
+#' @param EM.verbose (Optional) Integer in {0,1,2}. verbose = 0: No output.
+#'   verbose = 1: Print summary at the end of the optimization. verbose = 2:
+#'   Print progress during optimization.
+#' @param sample.data (Optional) Sample data according to posterior probability
+#'   or not.
+#' @param TGGL.mu (Optional) Mu parameter for TGGL.
+#' @param TGGL.epsilon (Optional) Epsilon parameter for TGGL.
+#'
 #'
 #' @return List containing
 #' \item{models}{List of TGGL models for each component.}
@@ -41,7 +54,11 @@
 #' @export
 RunTGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
                        test.ids = NULL, num.starts = 1, num.threads = NULL,
-                       groups, weights, lambda, verbose = 0, ...) {
+                       groups, weights, lambda, verbose = 0,
+                       gam = 1, homoscedastic = FALSE,
+                       EM.max.iter = 200, EM.epsilon = 1e-5,
+                       EM.verbose = 0, sample.data = FALSE,
+                       TGGL.mu = 1e-5, TGGL.epsilon = 1e-5) {
   ##################
   # error checking #
   ##################
@@ -107,7 +124,11 @@ RunTGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
     # Run TGGLMixture
     tggl.mix <- TGGLMix(X = X, task.specific.features = task.specific.features,
                         Y = Y, M = M, groups = groups, weights = weights,
-                        lambda = lambda,  ...)
+                        lambda = lambda,
+                        homoscedastic = homoscedastic, gam = gam,
+                        EM.max.iter = EM.max.iter, EM.epsilon = EM.epsilon,
+                        EM.verbose = EM.verbose, sample.data = sample.data,
+                        TGGL.mu = TGGL.mu, TGGL.epsilon = TGGL.epsilon)
     if (verbose > 1) {
       print(sprintf('Start %d - PenNegLL: %.3f, LL: %.3f.',
                     start.id, tggl.mix$obj, tggl.mix$loglik))
