@@ -239,7 +239,7 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
     if (length(task.specific.features) > 0) {
       # task specific features
       for (k in 1:K) {
-        dh[, k] <- 1/N * (XTX[[k]] %*% W[, k] - XTY[, k] + XT1[[k]] %*% t(intercept))
+        dh[, k] <- 1/N * (XTX[[k]] %*% W[, k] - XTY[, k] + XT1[[k]] * intercept[k])
       }
     } else {
       # no task specific features
