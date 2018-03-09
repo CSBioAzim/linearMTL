@@ -39,7 +39,7 @@
 #'   or not.
 #' @param TGGL.mu (Optional) Mu parameter for TGGL.
 #' @param TGGL.epsilon (Optional) Epsilon parameter for TGGL.
-#'
+#' @param shrink.mu (Optional) Multiply mu by min(lambda, 1).
 #'
 #' @return List containing
 #' \item{models}{List of TGGL models for each component.}
@@ -58,7 +58,7 @@ RunTGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
                        gam = 1, homoscedastic = FALSE,
                        EM.max.iter = 200, EM.epsilon = 1e-5,
                        EM.verbose = 0, sample.data = FALSE,
-                       TGGL.mu = 1e-5, TGGL.epsilon = 1e-5) {
+                       TGGL.mu = 1e-5, TGGL.epsilon = 1e-5, shrink.mu = TRUE) {
   ##################
   # error checking #
   ##################
@@ -122,13 +122,19 @@ RunTGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
 
   RunModel <- function(start.id) {
     # Run TGGLMixture
+    if (shrink.mu) {
+      mu <- TGGL.mu * min(lambda, 1)
+    } else {
+      mu <- TGGL.mu
+    }
+
     tggl.mix <- TGGLMix(X = X, task.specific.features = task.specific.features,
                         Y = Y, M = M, groups = groups, weights = weights,
                         lambda = lambda,
                         homoscedastic = homoscedastic, gam = gam,
                         EM.max.iter = EM.max.iter, EM.epsilon = EM.epsilon,
                         EM.verbose = EM.verbose, sample.data = sample.data,
-                        TGGL.mu = TGGL.mu, TGGL.epsilon = TGGL.epsilon)
+                        TGGL.mu = mu, TGGL.epsilon = TGGL.epsilon)
     if (verbose > 1) {
       print(sprintf('Start %d - PenNegLL: %.3f, LL: %.3f.',
                     start.id, tggl.mix$obj, tggl.mix$loglik))
@@ -142,7 +148,11 @@ RunTGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
   }
   doMC::registerDoMC(num.threads)
   train.start.time <- Sys.time()
-  results <- foreach(l = 1:num.starts) %dopar% RunModel(l)
+  # results <- foreach(l = 1:num.starts) %dopar% RunModel(l)
+  results <- list()
+  for (l in 1:num.starts) {
+    results[[l]] <- RunModel(l)
+  }
   train.end.time <- Sys.time()
   top.model.idx <- which.min(sapply(results, FUN = function(x){x$obj}))
   top.model <- results[[top.model.idx]]

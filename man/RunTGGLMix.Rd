@@ -9,7 +9,8 @@ RunTGGLMix(X = NULL, task.specific.features = list(), Y, M,
   test.ids = NULL, num.starts = 1, num.threads = NULL, groups, weights,
   lambda, verbose = 0, gam = 1, homoscedastic = FALSE,
   EM.max.iter = 200, EM.epsilon = 1e-05, EM.verbose = 0,
-  sample.data = FALSE, TGGL.mu = 1e-05, TGGL.epsilon = 1e-05)
+  sample.data = FALSE, TGGL.mu = 1e-05, TGGL.epsilon = 1e-05,
+  shrink.mu = TRUE)
 }
 \arguments{
 \item{X}{N by J1 matrix of features common to all tasks.}
@@ -62,6 +63,8 @@ or not.}
 \item{TGGL.mu}{(Optional) Mu parameter for TGGL.}
 
 \item{TGGL.epsilon}{(Optional) Epsilon parameter for TGGL.}
+
+\item{shrink.mu}{(Optional) Multiply mu by min(lambda, 1).}
 }
 \value{
 List containing
