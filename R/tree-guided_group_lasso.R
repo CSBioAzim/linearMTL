@@ -225,6 +225,7 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
   dh <- matrix(0, nrow = J, ncol = K)
   start.time <- Sys.time();
 
+  early.termination <- FALSE
   ################################################
   # optimization using proximal gradient descent #
   ################################################
@@ -265,6 +266,13 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
     # compute delta
     delta <- sqrt(sum((B.new - B)^2) + sum((intercept.new - intercept)^2))
     delta <- delta / max(sqrt(sum(B.new^2) + sum(intercept.new^2)), 1)
+
+    if (is.nan(delta)) {
+      print("Premature stopping due to Inf parameter values. Consider retuning mu.")
+      early.termination <- TRUE
+      break()
+    }
+
     if (((iter %% 100) == 0) & (iter > 0)) {
       # compute new objective
       obj <- ComputeObjective(Y = Y, B = B.new, intercept = intercept.new, X = X,
@@ -299,7 +307,7 @@ TreeGuidedGroupLasso <- function (X = NULL, task.specific.features = list(), Y,
                   as.numeric(end.time - start.time, units = "secs")))
   }
 
-  early.termination <- iter > max.iter
+  early.termination <- (iter > max.iter) | early.termination
   if (early.termination & (verbose > 1)) {
     print(sprintf("Warning: Reached maximum number of iterations (%d).", max.iter))
   }
