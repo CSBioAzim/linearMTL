@@ -148,11 +148,8 @@ RunTGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
   }
   doMC::registerDoMC(num.threads)
   train.start.time <- Sys.time()
-  # results <- foreach(l = 1:num.starts) %dopar% RunModel(l)
-  results <- list()
-  for (l in 1:num.starts) {
-    results[[l]] <- RunModel(l)
-  }
+  results <- foreach(l = 1:num.starts) %dopar% RunModel(l)
+
   train.end.time <- Sys.time()
   top.model.idx <- which.min(sapply(results, FUN = function(x){x$obj}))
   top.model <- results[[top.model.idx]]
