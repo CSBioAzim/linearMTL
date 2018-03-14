@@ -75,6 +75,9 @@ List containing
 \item{obj}{Penalized negative likelihood (final objective value).}
 \item{train.loglik}{Likelihood for training data.}
 \item{test.loglik}{Likelihood for test data.}
+\item{groups}{groups argument.}
+\item{weights}{weights argument.}
+\item{lambda}{lambda argument.}
 }
 \description{
 Fit a tree-guided group lasso mixture model. Restart with different random

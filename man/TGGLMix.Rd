@@ -58,6 +58,9 @@ List containing
 \item{sigmas}{M by K Matrix with standard deviations for each component.}
 \item{obj}{Penalized negative log-likelihood (final objective value).}
 \item{loglik}{Likelihood for training data.}
+\item{groups}{groups argument.}
+\item{weights}{weights argument.}
+\item{lambda}{lambda argument.}
 }
 \description{
 Fit a tree-guided group lasso mixture model using a generalized EM

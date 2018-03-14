@@ -49,6 +49,9 @@
 #' \item{obj}{Penalized negative likelihood (final objective value).}
 #' \item{train.loglik}{Likelihood for training data.}
 #' \item{test.loglik}{Likelihood for test data.}
+#' \item{groups}{groups argument.}
+#' \item{weights}{weights argument.}
+#' \item{lambda}{lambda argument.}
 #'
 #' @seealso \code{\link{TGGLMix}}
 #' @export
@@ -174,5 +177,8 @@ RunTGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
               sigmas = top.model$sigmas,
               obj = top.model$obj,
               train.loglik = top.model$loglik,
-              test.loglik = test.stats$loglik))
+              test.loglik = test.stats$loglik,
+              groups = groups,
+              weights = weights,
+              lambda = lambda))
 }

@@ -36,6 +36,9 @@
 #' \item{sigmas}{M by K Matrix with standard deviations for each component.}
 #' \item{obj}{Penalized negative log-likelihood (final objective value).}
 #' \item{loglik}{Likelihood for training data.}
+#' \item{groups}{groups argument.}
+#' \item{weights}{weights argument.}
+#' \item{lambda}{lambda argument.}
 #'
 #' @seealso \code{\link{TreeGuidedGroupLasso}}
 #' @export
@@ -295,7 +298,10 @@ TGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
               prior = prior,
               sigmas = sig,
               obj = obj,
-              loglik = loglik))
+              loglik = loglik,
+              groups = groups,
+              weights = weights,
+              lambda = lambda))
 }
 
 
