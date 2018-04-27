@@ -467,8 +467,93 @@ FindLeaves <- function(clusters, i, K, leaves) {
   return(leaves)
 }
 
+#' Construct tree for \code{\link{TreeGuidedGroupLasso}} from prior grouping.
+#'
+#' Generalize hierarchical clustering distances to compute node weights from the
+#' (response) matrix Y for a given grouping. Weights will be normalized using
+#' ComputeGroupWeights.
+#'
+#' @param Y N by K matrix for every task.
+#' @param groups V by K matrix determining group membership: Task k in group v
+#'   iff groups[v,k] == 1.
+#' @param linkage "complete" or "average". Linkage type used (distance measure
+#'   between clusters).
+#' @param distance Function for computing pairwise distances between columns of
+#'   Y. Default is 1-cor(a,b).
+#' @return Vector containing node weights.
+#'
+#' @seealso \code{\link{TreeGuidedGroupLasso}},
+#'   \code{\link{ComputeGroupWeights}}.
+#' @export
+ComputeWeightsFromTree <- function(Y, groups,
+                                   linkage = "complete",
+                                   distance = function(a,b){1-cor(a,b)}) {
 
+  V <- nrow(groups)
+  K <- ncol(groups)
 
+  if (sum(rowSums(groups) == 1) != K) {
+    stop("groups does not contain K singletons!")
+  }
+
+  # make sure that singleton groups are at position 1:K
+  group.size.ordering <- order(rowSums(groups))
+  groups <- groups[group.size.ordering, ]
+
+  s <- rep(0, V)
+  for (i in (K+1):V) {
+    # determine children of node i
+    node <- groups[i, ]
+    node.size <- sum(node)
+    descendants <- groups[1:i, ]
+    descendants <- descendants[rowSums(descendants[, as.logical(node)]) > 0, ]
+    children <- c()
+    l <- nrow(descendants)
+    # descendants is ordered according to group size
+    while (sum(children) < node.size) {
+      l <- l - 1
+      if (l < 1) {
+        stop("Invalid tree. Does tree contain all singletons?")
+      }
+      c.temp <- rbind(descendants[l, ], children)
+      if (!any(colSums(c.temp) > 1)) {
+        children <- c.temp
+      }
+    }
+    s[i] <- ComputeDistance(children, Y, linkage, distance)
+  }
+  if (max(s) > 1) {
+    s <- s / max(s)
+  }
+
+  weights <- ComputeGroupWeights(groups, s)
+  # return weights in original order of groups matrix
+  return(weights[order(group.size.ordering)])
+}
+
+ComputeDistance <- function(children, Y, linkage, distance) {
+  # Used by ComputeWeightsFromTree to determine distance between clusters in
+  # children.
+  pairwise.distances <- c()
+  for (c1 in 1:(nrow(children)-1)) {
+    for (c2 in (c1+1):nrow(children)) {
+      group1 <- which(children[c1, ] == 1)
+      group2 <- which(children[c2, ] == 1)
+      for (t1 in group1) {
+        for (t2 in group2) {
+          pairwise.distances <- c(pairwise.distances, distance(Y[, t1], Y[, t2]))
+        }
+      }
+    }
+  }
+  if (linkage == "average") {
+    return(mean(pairwise.distances))
+  } else if (linkage == "complete") {
+    return(max(pairwise.distances))
+  } else {
+    stop("Unknown linkage.")
+  }
+}
 
 #' Compute node weights using scheme from Kim et al [2010].
 #'
