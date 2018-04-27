@@ -467,7 +467,7 @@ FindLeaves <- function(clusters, i, K, leaves) {
   return(leaves)
 }
 
-#' Construct tree for \code{\link{TreeGuidedGroupLasso}} from prior grouping.
+#' Compute weights for \code{\link{TreeGuidedGroupLasso}} from prior grouping.
 #'
 #' Generalize hierarchical clustering distances to compute node weights from the
 #' (response) matrix Y for a given grouping. Weights will be normalized using
@@ -532,8 +532,8 @@ ComputeWeightsFromTree <- function(Y, groups,
 }
 
 ComputeDistance <- function(children, Y, linkage, distance) {
-  # Used by ComputeWeightsFromTree to determine distance between clusters in
-  # children.
+  # Used by ComputeWeightsFromTree to determine distance between clusters
+  # encoded by the rows of children.
   pairwise.distances <- c()
   for (c1 in 1:(nrow(children)-1)) {
     for (c2 in (c1+1):nrow(children)) {
