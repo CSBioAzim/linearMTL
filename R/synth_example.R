@@ -3,18 +3,18 @@
 #' Generate synthetic data as in Kim et al. 2010 and apply tree-guided group
 #' lasso and lasso models.
 #'
-#' @param method Method to use. "group" (TGGL), "tbt" (task-by-task), "all" (both).
-#'
+#' @export
 #' @importFrom lattice levelplot
 #' @importFrom grDevices gray
 #' @importFrom stats rnorm
-#' @export
-TestLinearMTL <- function(method = "all") {
+#' @importFrom RColorBrewer brewer.pal
+#' @import latticeExtra
+TestLinearMTL <- function() {
   set.seed(12345)
   # number of data points
-  N <- 150
+  N <- 50
   # number of input dimensions
-  J <- 200
+  J <- 150
   # number of tasks
   K <- 60
   # signal intensity
@@ -42,68 +42,61 @@ TestLinearMTL <- function(method = "all") {
   B.truth[2, ] <- signal
 
   # generate training and test matrices
-  Xtrain <- matrix(sample(c(0,1,2), N * J, replace = T), nrow = N)
-  Xtest <- matrix(sample(c(0,1,2), N * J, replace = T), nrow = N)
+  Xtrain <- matrix(rnorm(N * J), nrow = N)
   Ytrain <- Xtrain %*% B.truth + matrix(rnorm(N * K), nrow = N)
-  Ytest <- Xtest %*% B.truth + matrix(rnorm(N * K), nrow = N)
+  Xtest <- matrix(rnorm(200 * J), nrow = 200)
+  Ytest <- Xtest %*% B.truth + matrix(rnorm(200 * K), nrow = 200)
 
-  if ((method == "group") | (method == "all")) {
-    M <- BuildTreeHC(Ytrain, 0.6)
-    lambda.vec = 10^seq(-3, 2, length.out = 6)
-    tggl <- RunGroupCrossvalidation(X = Xtrain,
-                                    Y = Ytrain,
-                                    groups = M$groups,
-                                    weights.matrix = matrix(M$weights, nrow = 1),
-                                    lambda.vec = lambda.vec,
-                                    epsilon = 1e-4,
-                                    mu = 1e-5, mu.adapt = 1,
-                                    verbose = 0, standardize = T)
-    tggl.model <- tggl$full.model
-  }
-  if ((method == "tbt") | (method == "all")) {
-    lambda.vec = 10^seq(-5, 2, length.out = 20)
-    tbt <- RunTBTCrossvalidation(X = Xtrain,
-                                 Y = Ytrain,
-                                 lambda.vec = lambda.vec,
-                                 standardize = T)
-    tbt.model <- tbt$full.model
-  }
+  M <- BuildTreeHC(B.truth, 2)
+  lambda.vec = 10^seq(-2, 1, length.out = 20)
+  tggl <- RunGroupCrossvalidation(X = Xtrain,
+                                  Y = Ytrain,
+                                  groups = M$groups,
+                                  weights.matrix = matrix(M$weights, nrow = 1),
+                                  lambda.vec = lambda.vec,
+                                  epsilon = 1e-4,
+                                  mu = 1e-5, mu.adapt = 1,
+                                  verbose = 0, standardize = T)
+  tggl.model <- tggl$full.model
+
+  lambda.vec = 10^seq(-2, 1, length.out = 20)
+  tbt <- RunTBTCrossvalidation(X = Xtrain,
+                               Y = Ytrain,
+                               lambda.vec = lambda.vec,
+                               standardize = T)
+  tbt.model <- tbt$full.model
+
 
   # evaluate
   # compute test error and test correlation
-  if ((method == "group") | (method == "all")) {
-    group.test.pred <- MTPredict(LMTL.model = tggl.model, X = Xtest)
-    group.err <- MTComputeError(LMTL.model = tggl.model, Y = Ytest, X = Xtest)
-    group.cor <- MTComputeMeanCorrelation(LMTL.model = tggl.model, Y = Ytest, X = Xtest)
-    print(sprintf("GROUP  - test mse: %f, test cor: %f", group.err, group.cor))
-  }
-  if ((method == "tbt") | (method == "all")) {
-    sbs.test.pred <- MTPredict(LMTL.model = tbt.model, X = Xtest)
-    sbs.err <- MTComputeError(LMTL.model = tbt.model, Y = Ytest, X = Xtest)
-    sbs.cor <- MTComputeMeanCorrelation(LMTL.model = tbt.model, Y = Ytest, X = Xtest)
-    print(sprintf("SBS    - test mse: %f, test cor: %f", sbs.err, sbs.cor))
-  }
+  sbs.test.pred <- MTPredict(LMTL.model = tbt.model, X = Xtest)
+  sbs.err <- MTComputeError(LMTL.model = tbt.model, Y = Ytest, X = Xtest)
+  sbs.cor <- MTComputeMeanCorrelation(LMTL.model = tbt.model, Y = Ytest, X = Xtest)
+  print(sprintf("SBS    - test mse: %f, test cor: %f", sbs.err, sbs.cor))
+
+  group.test.pred <- MTPredict(LMTL.model = tggl.model, X = Xtest)
+  group.err <- MTComputeError(LMTL.model = tggl.model, Y = Ytest, X = Xtest)
+  group.cor <- MTComputeMeanCorrelation(LMTL.model = tggl.model, Y = Ytest, X = Xtest)
+  print(sprintf("GROUP  - test mse: %f, test cor: %f", group.err, group.cor))
+
   opt.model <- list(B = B.truth, intercept = rep(0, ncol(B.truth)))
   opt.pred <- MTPredict(LMTL.model = opt.model, X = Xtest)
   opt.err <- MTComputeError(LMTL.model = opt.model, Y = Ytest, X = Xtest)
   opt.cor <- MTComputeMeanCorrelation(LMTL.model = opt.model, Y = Ytest, X = Xtest)
   print(sprintf("OPT    - test mse: %f, test cor: %f", opt.err, opt.cor))
 
-  # plot coefficients
-  scl <- seq(-0.3,0.5, by = 0.01)
-  colreg <- grDevices::gray(1:(length(scl)+1)/(length(scl)+1))
-  if ((method == "group") | (method == "all")) {
-    print(lattice::levelplot(tggl.model$B, at = scl, col.regions = colreg))
-  }
-  if ((method == "tbt") | (method == "all")) {
-    print(lattice::levelplot(tbt.model$B, at = scl, col.regions = colreg))
-  }
-  print(lattice::levelplot(B.truth, at = scl, col.regions = colreg))
+  colreg <- c(RColorBrewer::brewer.pal(8, "PuBu")[8:2], 'white',
+              RColorBrewer::brewer.pal(8, "OrRd")[2:8])
+  scl <- seq(-1,1, length.out = length(colreg)+1)
 
-  # plot error
-  if (method == "all") {
-    plot(colSums((sbs.test.pred - Ytest)^2) / N, col = "red", type = "p")
-    lines(colSums((group.test.pred - Ytest)^2) / N, type = "p", col = "blue")
-    lines(colSums((Xtest %*% B.truth - Ytest)^2) / N, type = "p", col = "black")
-  }
+  p1 <- lattice::levelplot(t(B.truth)[,J:1], at = scl, col.regions = colreg,
+                           xlab = list(label="Tasks", ps = 12),
+                           ylab = list(label="Features", ps = 12),
+                           main = "")
+  p2 <- lattice::levelplot(t(tbt.model$B)[,J:1], at = scl, col.regions = colreg)
+  p3 <- lattice::levelplot(t(tggl.model$B)[,J:1], at = scl, col.regions = colreg)
+
+  plots <- c("Groundtruth" = p1, "TBT-Lasso" = p2, "TGGL" = p3,
+             layout = c(3,1), merge.legends = FALSE, x.same = FALSE, y.same = TRUE)
+  print(plots)
 }
