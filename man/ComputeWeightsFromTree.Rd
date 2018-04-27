@@ -2,7 +2,7 @@
 % Please edit documentation in R/tree-guided_group_lasso.R
 \name{ComputeWeightsFromTree}
 \alias{ComputeWeightsFromTree}
-\title{Construct tree for \code{\link{TreeGuidedGroupLasso}} from prior grouping.}
+\title{Compute weights for \code{\link{TreeGuidedGroupLasso}} from prior grouping.}
 \usage{
 ComputeWeightsFromTree(Y, groups, linkage = "complete",
   distance = function(a, b) {     1 - cor(a, b) })
