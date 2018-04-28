@@ -127,6 +127,9 @@ TGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
   # abort optimization
   prior.min <- 1/N
 
+  # iterations for TGGL (will be updated dynamically)
+  max.iter <- 25
+
   iter <- 1
 
   #####################
@@ -184,6 +187,12 @@ TGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
 
       if (Nm > 0) {
         # optimize phi
+        if (!sample.data & (delta < 1e-2)) {
+          if (max.iter < 2500) {
+            max.iter <- max.iter + 50
+          }
+        }
+
         model.list[[m]] <- TreeGuidedGroupLasso(X = X,
                                                 task.specific.features = task.specific.features,
                                                 Y = Y.rho,
@@ -193,7 +202,7 @@ TGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
                                                 epsilon = TGGL.epsilon,
                                                 init.B = model.list[[m]]$B,
                                                 verbose = 0, standardize = FALSE,
-                                                row.weights = tau[, m])
+                                                row.weights = tau[, m], max.iter = max.iter)
         # compute new (unweighted) predictions
         pred <- MTPredict(model.list[[m]], X = X,
                           task.specific.features = task.specific.features)
@@ -277,7 +286,11 @@ TGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
           print(sprintf("Iter %d. Obj: %.5f. Mixing Proportions: %s", iter, obj, s))
         }
       } else {
-        break()
+        if (max.iter < 2500) {
+          max.iter <- max.iter + 1000
+        } else {
+          break()
+        }
       }
     }
     iter <- iter + 1
