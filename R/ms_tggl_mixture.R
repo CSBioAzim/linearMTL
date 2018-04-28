@@ -3,9 +3,9 @@
 #'
 #' Fit a tree-guided group lasso mixture model. Restart with different random
 #' initializations and keep the model with the lowest objective value. Optional:
-#' Evaluate best model on test set. By default all data is used for training. If
-#' validation.ids is not NULL, exclude corresponding indices from training and
-#' use them for validating parameters instead.
+#' Evaluate best model on validation set. By default all data is used for
+#' training. If validation.ids is not NULL, exclude corresponding indices from
+#' training and use them for validating parameters instead.
 #'
 #' @param X N by J1 matrix of features common to all tasks.
 #' @param task.specific.features List of features which are specific to each
@@ -49,12 +49,12 @@
 #' @seealso \code{\link{TGGLMix}}
 #' @export
 RunTGGLMixSelection <- function(X = NULL, task.specific.features = list(), Y, M.vec,
-                       validation.ids = NULL, num.starts = 1, num.threads = NULL,
-                       groups, weights, lambda.vec, verbose = 0,
-                       gam = 1, homoscedastic = FALSE,
-                       EM.max.iter = 200, EM.epsilon = 1e-5,
-                       EM.verbose = 0, sample.data = FALSE,
-                       TGGL.mu = 1e-5, TGGL.epsilon = 1e-5, shrink.mu = TRUE) {
+                                validation.ids = NULL, num.starts = 1, num.threads = NULL,
+                                groups, weights, lambda.vec, verbose = 0,
+                                gam = 1, homoscedastic = FALSE,
+                                EM.max.iter = 200, EM.epsilon = 1e-5,
+                                EM.verbose = 0, sample.data = FALSE,
+                                TGGL.mu = 1e-5, TGGL.epsilon = 1e-5, shrink.mu = TRUE) {
   ##################
   # error checking #
   ##################
@@ -105,18 +105,18 @@ RunTGGLMixSelection <- function(X = NULL, task.specific.features = list(), Y, M.
   if (!is.null(validation.ids)) {
     train.ids <- setdiff(1:N, validation.ids)
     if (J1 > 0) {
-      X.test <- X[validation.ids, ]
+      X.validation <- X[validation.ids, ]
       X <- X[train.ids, ]
     } else {
-      X.test <- NULL
+      X.validation <- NULL
     }
     if (J2 > 0) {
-      tsf.test <- lapply(task.specific.features, FUN = function(x){x[validation.ids, ]})
+      tsf.validation <- lapply(task.specific.features, FUN = function(x){x[validation.ids, ]})
       task.specific.features <- lapply(task.specific.features, FUN = function(x){x[train.ids, ]})
     } else {
-      tsf.test <- list()
+      tsf.validation <- list()
     }
-    Y.test <- Y[validation.ids, ]
+    Y.validation <- Y[validation.ids, ]
     Y <- Y[train.ids, ]
   } else {
     if (nrow(parameter.grid) > 1) {
@@ -162,13 +162,13 @@ RunTGGLMixSelection <- function(X = NULL, task.specific.features = list(), Y, M.
     # determine validation likelihood (if applicable)
     validation.loglik <- NA
     if (!is.null(validation.ids)) {
-      test.stats <- ComputeLogLikelihood(top.model$models,
-                                         top.model$prior,
-                                         top.model$sigmas,
-                                         X = X.test,
-                                         task.specific.features = tsf.test,
-                                         Y = Y.test)
-      validation.loglik <- test.stats$loglik
+      validation.stats <- ComputeLogLikelihood(top.model$models,
+                                               top.model$prior,
+                                               top.model$sigmas,
+                                               X = X.validation,
+                                               task.specific.features = tsf.validation,
+                                               Y = Y.validation)
+      validation.loglik <- validation.stats$loglik
     }
     if (verbose > 1) {
       if (is.null(validation.ids)) {
@@ -176,7 +176,7 @@ RunTGGLMixSelection <- function(X = NULL, task.specific.features = list(), Y, M.
                       M, lambda, train.time, top.model$obj, top.model$loglik))
       } else {
         print(sprintf('Trained TGGLMix [M = %d, lambda = %.e], %0.1f min. PenNegLL: %.3f, Train-LL: %.3f, Validation-LL: %.3f.',
-                      M, lambda, train.time, top.model$obj, top.model$loglik, test.stats$loglik))
+                      M, lambda, train.time, top.model$obj, top.model$loglik, validation.stats$loglik))
       }
     }
     return(list(models = top.model$models,
@@ -202,8 +202,41 @@ RunTGGLMixSelection <- function(X = NULL, task.specific.features = list(), Y, M.
 
   if (is.null(validation.ids)) {
     opt.model.idx <- 1
+    top.model = results[[opt.model.idx]]
   } else {
+    # retrain model on train + validation
+    if (verbose > 0) {
+      print("Training model for best parameter setting on training + validation ... ")
+    }
     opt.model.idx <- which.max(sapply(results, FUN = function(x){x$validation.loglik}))
+    M <- parameter.grid[opt.model.idx, 1]
+    lambda <- parameter.grid[opt.model.idx, 2]
+    if (shrink.mu) {
+      mu <- TGGL.mu * min(lambda, 1)
+    } else {
+      mu <- TGGL.mu
+    }
+
+    if (J1 > 0) {
+      X <- rbind(X, X.validation)
+    } else {
+      X <- NULL
+    }
+    if (J2 > 0) {
+      task.specific.features <- lapply(1:K, FUN = function(k){
+        rbind(task.specific.features[[k]], tsf.validation[[k]])})
+    } else {
+      task.specific.features <- list()
+    }
+
+    top.model <- TGGLMix(X = X, task.specific.features = task.specific.features,
+                         Y = rbind(Y, Y.validation),
+                         M = M, groups = groups, weights = weights,
+                         lambda = lambda,
+                         homoscedastic = homoscedastic, gam = gam,
+                         EM.max.iter = EM.max.iter, EM.epsilon = EM.epsilon,
+                         EM.verbose = EM.verbose, sample.data = sample.data,
+                         TGGL.mu = mu, TGGL.epsilon = TGGL.epsilon)
   }
 
   if (verbose > 0) {
@@ -211,5 +244,5 @@ RunTGGLMixSelection <- function(X = NULL, task.specific.features = list(), Y, M.
                   sel.time, parameter.grid[opt.model.idx, 1], parameter.grid[opt.model.idx, 2]))
   }
 
-  return(list(results = results, top.model = results[[opt.model.idx]]))
+  return(list(results = results, top.model = top.model))
 }
