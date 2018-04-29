@@ -46,7 +46,7 @@
 TGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
                     groups, weights, lambda,
                     gam = 1, homoscedastic = FALSE,
-                    EM.max.iter = 200, EM.epsilon = 1e-5,
+                    EM.max.iter = 1000, EM.epsilon = 1e-4,
                     EM.verbose = 0, sample.data = FALSE,
                     TGGL.mu = 1e-5, TGGL.epsilon = 1e-5) {
 
@@ -188,7 +188,7 @@ TGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
       if (Nm > 0) {
         # optimize phi
         if (!sample.data & (delta < 1e-2)) {
-          if (max.iter < 2500) {
+          if (max.iter < 10000) {
             max.iter <- max.iter + 50
           }
         }
@@ -286,7 +286,7 @@ TGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
           print(sprintf("Iter %d. Obj: %.5f. Mixing Proportions: %s", iter, obj, s))
         }
       } else {
-        if (max.iter < 2500) {
+        if (max.iter < 10000) {
           max.iter <- max.iter + 1000
         } else {
           break()
