@@ -40,6 +40,11 @@
 #'   or not.
 #' @param TGGL.mu (Optional) Mu parameter for TGGL.
 #' @param TGGL.epsilon (Optional) Epsilon parameter for TGGL.
+#' @param TGGL.iter (Optional) Initial number of iterations for TGGL. Will be
+#'   increased incrementally to ensure convergence. When the number of samples
+#'   is much larger than the dimensionalty, it can be beneficial to use a large
+#'   initial number of iterations for TGGL. This is because every run of TGGL
+#'   requires precomputation of multiple n-by-n matrix products.
 #' @param shrink.mu (Optional) Multiply mu by min(lambda, 1).
 #'
 #' @return List containing
@@ -54,7 +59,10 @@ RunTGGLMixSelection <- function(X = NULL, task.specific.features = list(), Y, M.
                                 gam = 1, homoscedastic = FALSE,
                                 EM.max.iter = 200, EM.epsilon = 1e-5,
                                 EM.verbose = 0, sample.data = FALSE,
-                                TGGL.mu = 1e-5, TGGL.epsilon = 1e-5, shrink.mu = TRUE) {
+                                TGGL.mu = 1e-5,
+                                TGGL.epsilon = 1e-5,
+                                TGGL.iter = 25,
+                                shrink.mu = TRUE) {
   ##################
   # error checking #
   ##################
@@ -145,7 +153,7 @@ RunTGGLMixSelection <- function(X = NULL, task.specific.features = list(), Y, M.
                           homoscedastic = homoscedastic, gam = gam,
                           EM.max.iter = EM.max.iter, EM.epsilon = EM.epsilon,
                           EM.verbose = EM.verbose, sample.data = sample.data,
-                          TGGL.mu = mu, TGGL.epsilon = TGGL.epsilon)
+                          TGGL.mu = mu, TGGL.epsilon = TGGL.epsilon, TGGL.iter = TGGL.iter)
       if (verbose > 2) {
         print(sprintf('[M = %d, lambda = %.e] Start %d - PenNegLL: %.3f, LL: %.3f.',
                       M, lambda, st, tggl.mix$obj, tggl.mix$loglik))
