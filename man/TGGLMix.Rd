@@ -5,9 +5,9 @@
 \title{Fit a tree-guided group lasso mixture model model (TGGLMix).}
 \usage{
 TGGLMix(X = NULL, task.specific.features = list(), Y, M, groups, weights,
-  lambda, gam = 1, homoscedastic = FALSE, EM.max.iter = 200,
-  EM.epsilon = 1e-05, EM.verbose = 0, sample.data = FALSE,
-  TGGL.mu = 1e-05, TGGL.epsilon = 1e-05)
+  lambda, gam = 1, homoscedastic = FALSE, EM.max.iter = 1000,
+  EM.epsilon = 1e-04, EM.verbose = 0, sample.data = FALSE,
+  TGGL.mu = 1e-05, TGGL.epsilon = 1e-05, TGGL.iter = 25)
 }
 \arguments{
 \item{X}{N by J1 matrix of features common to all tasks.}
@@ -49,6 +49,12 @@ or not.}
 \item{TGGL.mu}{(Optional) Mu parameter for TGGL.}
 
 \item{TGGL.epsilon}{(Optional) Epsilon parameter for TGGL.}
+
+\item{TGGL.iter}{(Optional) Initial number of iterations for TGGL. Will be
+increased incrementally to ensure convergence. When the number of samples
+is much larger than the dimensionalty, it can be beneficial to use a large
+initial number of iterations for TGGL. This is because every run of TGGL
+requires precomputation of multiple n-by-n matrix products.}
 }
 \value{
 List containing

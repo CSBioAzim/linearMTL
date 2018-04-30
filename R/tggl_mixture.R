@@ -28,6 +28,11 @@
 #'   or not.
 #' @param TGGL.mu (Optional) Mu parameter for TGGL.
 #' @param TGGL.epsilon (Optional) Epsilon parameter for TGGL.
+#' @param TGGL.iter (Optional) Initial number of iterations for TGGL. Will be
+#'   increased incrementally to ensure convergence. When the number of samples
+#'   is much larger than the dimensionalty, it can be beneficial to use a large
+#'   initial number of iterations for TGGL. This is because every run of TGGL
+#'   requires precomputation of multiple n-by-n matrix products.
 #'
 #' @return List containing
 #' \item{models}{List of TGGL models for each component.}
@@ -43,12 +48,16 @@
 #' @seealso \code{\link{TreeGuidedGroupLasso}}
 #' @export
 #' @importFrom stats runif rmultinom
-TGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
-                    groups, weights, lambda,
-                    gam = 1, homoscedastic = FALSE,
-                    EM.max.iter = 1000, EM.epsilon = 1e-4,
-                    EM.verbose = 0, sample.data = FALSE,
-                    TGGL.mu = 1e-5, TGGL.epsilon = 1e-5) {
+TGGLMix <- function(X = NULL, task.specific.features = list(), Y,
+                    M, groups, weights, lambda, gam = 1,
+                    homoscedastic = FALSE,
+                    EM.max.iter = 1000,
+                    EM.epsilon = 1e-4,
+                    EM.verbose = 0,
+                    sample.data = FALSE,
+                    TGGL.mu = 1e-5,
+                    TGGL.epsilon = 1e-5,
+                    TGGL.iter = 25) {
 
   ##################
   # error checking #
@@ -128,7 +137,7 @@ TGGLMix <- function(X = NULL, task.specific.features = list(), Y, M,
   prior.min <- 1/N
 
   # iterations for TGGL (will be updated dynamically)
-  max.iter <- 25
+  max.iter <- TGGL.iter
 
   iter <- 1
 

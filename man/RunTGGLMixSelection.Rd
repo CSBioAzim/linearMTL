@@ -75,9 +75,9 @@ List containing
 \description{
 Fit a tree-guided group lasso mixture model. Restart with different random
 initializations and keep the model with the lowest objective value. Optional:
-Evaluate best model on test set. By default all data is used for training. If
-validation.ids is not NULL, exclude corresponding indices from training and
-use them for validating parameters instead.
+Evaluate best model on validation set. By default all data is used for
+training. If validation.ids is not NULL, exclude corresponding indices from
+training and use them for validating parameters instead.
 }
 \seealso{
 \code{\link{TGGLMix}}
