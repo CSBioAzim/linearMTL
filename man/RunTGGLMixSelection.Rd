@@ -10,7 +10,7 @@ RunTGGLMixSelection(X = NULL, task.specific.features = list(), Y, M.vec,
   weights, lambda.vec, verbose = 0, gam = 1, homoscedastic = FALSE,
   EM.max.iter = 200, EM.epsilon = 1e-05, EM.verbose = 0,
   sample.data = FALSE, TGGL.mu = 1e-05, TGGL.epsilon = 1e-05,
-  shrink.mu = TRUE)
+  TGGL.iter = 25, shrink.mu = TRUE)
 }
 \arguments{
 \item{X}{N by J1 matrix of features common to all tasks.}
@@ -64,6 +64,12 @@ or not.}
 \item{TGGL.mu}{(Optional) Mu parameter for TGGL.}
 
 \item{TGGL.epsilon}{(Optional) Epsilon parameter for TGGL.}
+
+\item{TGGL.iter}{(Optional) Initial number of iterations for TGGL. Will be
+increased incrementally to ensure convergence. When the number of samples
+is much larger than the dimensionalty, it can be beneficial to use a large
+initial number of iterations for TGGL. This is because every run of TGGL
+requires precomputation of multiple n-by-n matrix products.}
 
 \item{shrink.mu}{(Optional) Multiply mu by min(lambda, 1).}
 }
